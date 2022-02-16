@@ -180,12 +180,12 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg("build");
 
+        let host_target = get_host_target()?;
         let (target, rust_target) = if let Some(target) = self.target.as_ref() {
             let rust_target = target.split_once('.').map(|(t, _)| t).unwrap_or(target);
             (target.to_string(), rust_target.to_string())
         } else {
-            let target = get_host_target()?;
-            (target.clone(), target)
+            (host_target.clone(), host_target.clone())
         };
 
         // collect cargo build arguments
@@ -300,11 +300,13 @@ impl Build {
         }
 
         // setup zig as linker
-        let (zig_cc, zig_cxx) = prepare_zig_linker(&target)?;
-        let env_target = rust_target.to_uppercase().replace("-", "_");
-        build.env("TARGET_CC", &zig_cc);
-        build.env("TARGET_CXX", &zig_cxx);
-        build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+        if target != host_target {
+            let (zig_cc, zig_cxx) = prepare_zig_linker(&target)?;
+            let env_target = rust_target.to_uppercase().replace("-", "_");
+            build.env("TARGET_CC", &zig_cc);
+            build.env("TARGET_CXX", &zig_cxx);
+            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+        }
 
         let mut child = build.spawn().context("Failed to run cargo build")?;
         let status = child.wait().expect("Failed to wait on cargo build process");
