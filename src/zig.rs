@@ -124,6 +124,7 @@ impl Zig {
 ///
 /// We create different files for different args because otherwise cargo might skip recompiling even
 /// if the linker target changed
+#[allow(clippy::blocks_in_if_conditions)]
 pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
