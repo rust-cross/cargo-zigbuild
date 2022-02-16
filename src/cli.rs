@@ -180,11 +180,12 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg("build");
 
-        let target = if let Some(target) = self.target.as_ref() {
-            build.arg("--target").arg(target);
-            target.clone()
+        let (target, rust_target) = if let Some(target) = self.target.as_ref() {
+            let rust_target = target.split_once('.').map(|(t, _)| t).unwrap_or(target);
+            (target.to_string(), rust_target.to_string())
         } else {
-            get_host_target()?
+            let target = get_host_target()?;
+            (target.clone(), target)
         };
 
         // collect cargo build arguments
@@ -251,6 +252,7 @@ impl Build {
         if self.no_default_features {
             build.arg("--no-default-features");
         }
+        build.arg("--target").arg(&rust_target);
         if let Some(dir) = self.target_dir.as_ref() {
             build.arg("--target-dir").arg(dir);
         }
@@ -299,7 +301,7 @@ impl Build {
 
         // setup zig as linker
         let (zig_cc, zig_cxx) = prepare_zig_linker(&target)?;
-        let env_target = target.to_uppercase().replace("-", "_");
+        let env_target = rust_target.to_uppercase().replace("-", "_");
         build.env("TARGET_CC", &zig_cc);
         build.env("TARGET_CXX", &zig_cxx);
         build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);

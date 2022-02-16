@@ -125,19 +125,37 @@ impl Zig {
 /// We create different files for different args because otherwise cargo might skip recompiling even
 /// if the linker target changed
 pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
-    let triple: Triple = target.parse().unwrap();
+    let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
+    let abi_suffix = if abi_suffix.is_empty() {
+        String::new()
+    } else {
+        if abi_suffix
+            .split_once('.')
+            .filter(|(x, y)| {
+                !x.is_empty()
+                    && x.chars().all(|c| c.is_ascii_digit())
+                    && !y.is_empty()
+                    && y.chars().all(|c| c.is_ascii_digit())
+            })
+            .is_none()
+        {
+            bail!("Malformed zig target abi suffix.")
+        }
+        format!(".{}", abi_suffix)
+    };
+    let triple: Triple = rust_target.parse().unwrap();
     let arch = triple.architecture.to_string();
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let (zig_cc, zig_cxx, cc_args) = match (triple.operating_system, triple.environment) {
         (OperatingSystem::Linux, Environment::Gnu) => (
             format!("zigcc-{}.{}", target, file_ext),
             format!("zigcxx-{}.{}", target, file_ext),
-            format!("-target {}-linux-gnu", arch),
+            format!("-target {}-linux-gnu{}", arch, abi_suffix),
         ),
         (OperatingSystem::Linux, Environment::Musl) => (
             format!("zigcc-{}.{}", target, file_ext),
             format!("zigcxx-{}.{}", target, file_ext),
-            format!("-target {}-linux-musl", arch),
+            format!("-target {}-linux-musl{}", arch, abi_suffix),
         ),
         _ => bail!("unsupported target"),
     };

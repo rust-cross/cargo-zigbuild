@@ -42,6 +42,7 @@ jobs:
         run: |
           rustup target add aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu
+          cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
 
   fmt:
     name: Rustfmt
