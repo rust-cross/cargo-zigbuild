@@ -43,6 +43,10 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
+      - name: Test musl libc build
+        run: |
+          rustup target add aarch64-unknown-linux-musl
+          cargo run zigbuild --target aarch64-unknown-linux-musl
 
   fmt:
     name: Rustfmt

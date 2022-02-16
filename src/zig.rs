@@ -38,6 +38,11 @@ impl Zig {
             Zig::Cc { args } => ("cc", args),
             Zig::Cxx { args } => ("c++", args),
         };
+        let target = cmd_args
+            .iter()
+            .position(|x| x == "-target")
+            .and_then(|index| cmd_args.get(index + 1));
+        let is_musl = target.map(|x| x.contains("musl")).unwrap_or_default();
         // Replace libgcc_s with libunwind
         let cmd_args: Vec<String> = cmd_args
             .iter()
@@ -48,13 +53,49 @@ impl Zig {
                     // rustc passes arguments to linker via an @-file when arguments are too long
                     // See https://github.com/rust-lang/rust/issues/41190
                     let content = fs::read(arg.trim_start_matches('@'))?;
-                    let link_args = str::from_utf8(&content)?.replace("-lgcc_s", "-lunwind");
-                    fs::write(arg.trim_start_matches('@'), link_args.as_bytes())?;
+                    let link_args: Vec<_> = str::from_utf8(&content)?
+                        .split('\n')
+                        .filter_map(|arg| {
+                            if arg == "-lgcc_s" {
+                                return Some("-lunwind");
+                            }
+                            if is_musl {
+                                if arg.ends_with(".o")
+                                    && arg.contains("self-contained")
+                                    && arg.contains("crt")
+                                {
+                                    return None;
+                                }
+                                if arg.ends_with(".rlib") && arg.contains("liblibc-") {
+                                    return None;
+                                }
+                            }
+                            Some(arg)
+                        })
+                        .collect();
+                    fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
                     arg.to_string()
                 } else {
                     arg.to_string()
                 };
                 Ok(arg)
+            })
+            .filter(|arg| {
+                // Avoids duplicated symbols with both zig musl libc and the libc crate
+                if is_musl {
+                    if let Ok(arg) = arg.as_ref() {
+                        if arg.ends_with(".o")
+                            && arg.contains("self-contained")
+                            && arg.contains("crt")
+                        {
+                            return false;
+                        }
+                        if arg.ends_with(".rlib") && arg.contains("liblibc-") {
+                            return false;
+                        }
+                    }
+                }
+                true
             })
             .collect::<Result<_>>()?;
         let (zig, zig_args) = Self::find_zig()?;
