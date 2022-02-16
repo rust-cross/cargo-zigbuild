@@ -161,6 +161,7 @@ pub struct Build {
     unstable_flags: Vec<String>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 #[clap(
     version,
@@ -186,7 +187,7 @@ impl Build {
             get_host_target()?
         };
 
-        // collect cargo build argments
+        // collect cargo build arguments
         if self.quiet {
             build.arg("--quiet");
         }
