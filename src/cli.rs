@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::{self, Command};
 use std::str;
 
-use anyhow::{bail, format_err, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::zig::{prepare_zig_linker, Zig};
@@ -180,13 +180,10 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg("build");
 
-        let host_target = get_host_target()?;
-        let (target, rust_target) = if let Some(target) = self.target.as_ref() {
-            let rust_target = target.split_once('.').map(|(t, _)| t).unwrap_or(target);
-            (target.to_string(), rust_target.to_string())
-        } else {
-            (host_target.clone(), host_target.clone())
-        };
+        let rust_target = self
+            .target
+            .as_ref()
+            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target));
 
         // collect cargo build arguments
         if self.quiet {
@@ -252,7 +249,9 @@ impl Build {
         if self.no_default_features {
             build.arg("--no-default-features");
         }
-        build.arg("--target").arg(&rust_target);
+        if let Some(rust_target) = rust_target {
+            build.arg("--target").arg(&rust_target);
+        }
         if let Some(dir) = self.target_dir.as_ref() {
             build.arg("--target-dir").arg(dir);
         }
@@ -300,12 +299,14 @@ impl Build {
         }
 
         // setup zig as linker
-        if target != host_target {
-            let (zig_cc, zig_cxx) = prepare_zig_linker(&target)?;
-            let env_target = rust_target.to_uppercase().replace("-", "_");
-            build.env("TARGET_CC", &zig_cc);
-            build.env("TARGET_CXX", &zig_cxx);
-            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+        if let Some(target) = self.target.as_ref() {
+            if let Some(rust_target) = rust_target {
+                let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
+                let env_target = rust_target.to_uppercase().replace("-", "_");
+                build.env("TARGET_CC", &zig_cc);
+                build.env("TARGET_CXX", &zig_cxx);
+                build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+            }
         }
 
         let mut child = build.spawn().context("Failed to run cargo build")?;
@@ -315,38 +316,4 @@ impl Build {
         }
         Ok(())
     }
-}
-
-fn get_host_target() -> Result<String> {
-    let output = Command::new("rustc").arg("-vV").output();
-    let output = match output {
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            bail!(
-                "rustc, the rust compiler, is not installed or not in PATH. \
-                This package requires Rust and Cargo to compile extensions. \
-                Install it through the system's package manager or via https://rustup.rs/.",
-            );
-        }
-        Err(err) => {
-            return Err(err).context("Failed to run rustc to get the host target");
-        }
-        Ok(output) => output,
-    };
-
-    let output = str::from_utf8(&output.stdout).context("`rustc -vV` didn't return utf8 output")?;
-
-    let field = "host: ";
-    let host = output
-        .lines()
-        .find(|l| l.starts_with(field))
-        .map(|l| &l[field.len()..])
-        .ok_or_else(|| {
-            format_err!(
-                "`rustc -vV` didn't have a line for `{}`, got:\n{}",
-                field.trim(),
-                output
-            )
-        })?
-        .to_string();
-    Ok(host)
 }
