@@ -130,16 +130,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let (zig_cc, zig_cxx, cc_args) = match (triple.operating_system, triple.environment) {
         (OperatingSystem::Linux, Environment::Gnu) => (
-            format!("zigcc-gnu.{}", file_ext),
-            format!("zigcxx-gnu.{}", file_ext),
+            format!("zigcc-{}.{}", target, file_ext),
+            format!("zigcxx-{}.{}", target, file_ext),
             format!("-target {}-linux-gnu", arch),
         ),
         (OperatingSystem::Linux, Environment::Musl) => (
-            format!("zigcc-musl-{}-{}.{}", 1, 2, file_ext),
-            format!("zigcxx-musl-{}-{}.{}", 1, 2, file_ext),
+            format!("zigcc-{}.{}", target, file_ext),
+            format!("zigcxx-{}.{}", target, file_ext),
             format!("-target {}-linux-musl", arch),
         ),
-        _ => panic!("unsupported target"),
+        _ => bail!("unsupported target"),
     };
 
     let zig_linker_dir = dirs::cache_dir()

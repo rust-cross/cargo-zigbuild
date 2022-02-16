@@ -95,7 +95,7 @@ pub struct Build {
 
     /// Build for the target triple
     #[clap(long, value_name = "TRIPLE")]
-    target: Option<String>,
+    pub target: Option<String>,
 
     /// Directory for all generated artifacts
     #[clap(long, value_name = "DIRECTORY", parse(from_os_str))]
