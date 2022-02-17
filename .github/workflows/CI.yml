@@ -51,6 +51,7 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin
+          cargo run zigbuild --target aarch64-apple-darwin --release
 
   fmt:
     name: Rustfmt
