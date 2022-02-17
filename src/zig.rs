@@ -13,17 +13,17 @@ use fs_err as fs;
 use target_lexicon::{OperatingSystem, Triple};
 
 /// Zig linker wrapper
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, clap::Subcommand)]
 pub enum Zig {
     /// `zig cc` wrapper
-    #[clap(name = "cc", setting = clap::AppSettings::TrailingVarArg)]
+    #[clap(name = "cc", trailing_var_arg = true)]
     Cc {
         /// `zig cc` arguments
         #[clap(takes_value = true, multiple_values = true)]
         args: Vec<String>,
     },
     /// `zig c++` wrapper
-    #[clap(name = "c++", setting = clap::AppSettings::TrailingVarArg)]
+    #[clap(name = "c++", trailing_var_arg = true)]
     Cxx {
         /// `zig c++` arguments
         #[clap(takes_value = true, multiple_values = true)]
