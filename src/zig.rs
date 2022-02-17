@@ -113,8 +113,6 @@ impl Zig {
     }
 
     /// Search for `python -m ziglang` first and for `zig` second.
-    /// That way we use the zig from `maturin[ziglang]` first,
-    /// but users or distributions can also insert their own zig
     pub fn find_zig() -> Result<(String, Vec<String>)> {
         Self::find_zig_python()
             .or_else(|_| Self::find_zig_bin())
@@ -225,8 +223,8 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         .truncate(true)
         .mode(0o700)
         .open(path)?;
-    let current_exe = if let Ok(maturin) = env::var("CARGO_BIN_EXE_maturin") {
-        PathBuf::from(maturin)
+    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo_zigbuild") {
+        PathBuf::from(exe)
     } else {
         env::current_exe()?
     };
