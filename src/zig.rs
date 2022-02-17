@@ -43,12 +43,15 @@ impl Zig {
             .position(|x| x == "-target")
             .and_then(|index| cmd_args.get(index + 1));
         let is_musl = target.map(|x| x.contains("musl")).unwrap_or_default();
+        let is_windows_gnu = target.map(|x| x.contains("windows")).unwrap_or_default();
         // Replace libgcc_s with libunwind
         let cmd_args: Vec<String> = cmd_args
             .iter()
             .map(|arg| {
                 let arg = if arg == "-lgcc_s" {
                     "-lunwind".to_string()
+                } else if is_windows_gnu && arg == "-lgcc_eh" {
+                    "-lc++".to_string()
                 } else if arg.starts_with('@') && arg.ends_with("linker-arguments") {
                     // rustc passes arguments to linker via an @-file when arguments are too long
                     // See https://github.com/rust-lang/rust/issues/41190
@@ -58,6 +61,8 @@ impl Zig {
                         .filter_map(|arg| {
                             if arg == "-lgcc_s" {
                                 return Some("-lunwind");
+                            } else if is_windows_gnu && arg == "-lgcc_eh" {
+                                return Some("-lc++");
                             }
                             if is_musl {
                                 if arg.ends_with(".o")
@@ -69,6 +74,9 @@ impl Zig {
                                 if arg.ends_with(".rlib") && arg.contains("liblibc-") {
                                     return None;
                                 }
+                            }
+                            if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
+                                return None;
                             }
                             Some(arg)
                         })
@@ -82,8 +90,8 @@ impl Zig {
             })
             .filter(|arg| {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
-                if is_musl {
-                    if let Ok(arg) = arg.as_ref() {
+                if let Ok(arg) = arg.as_ref() {
+                    if is_musl {
                         if arg.ends_with(".o")
                             && arg.contains("self-contained")
                             && arg.contains("crt")
@@ -93,6 +101,9 @@ impl Zig {
                         if arg.ends_with(".rlib") && arg.contains("liblibc-") {
                             return false;
                         }
+                    }
+                    if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
+                        return false;
                     }
                 }
                 true
@@ -196,7 +207,10 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
             format!("-target {}-macos-gnu{}", arch, abi_suffix)
         }
-        OperatingSystem::Windows { .. } => format!("-target {}-windows-gnu{}", arch, abi_suffix),
+        OperatingSystem::Windows { .. } => format!(
+            "-target {}-windows-{}{}",
+            arch, triple.environment, abi_suffix
+        ),
         _ => bail!("unsupported target"),
     };
 
