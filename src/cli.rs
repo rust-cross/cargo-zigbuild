@@ -335,9 +335,16 @@ impl Build {
                     })
                     .join(target);
                 let profile = match self.profile.as_deref() {
-                    Some("dev" | "test") | None => "debug",
+                    Some("dev" | "test") => "debug",
                     Some("release" | "bench") => "release",
                     Some(profile) => profile,
+                    None => {
+                        if self.release {
+                            "release"
+                        } else {
+                            "debug"
+                        }
+                    }
                 };
                 let deps_dir = target_dir.join(profile).join("deps");
                 fs::create_dir_all(&deps_dir)?;
