@@ -19,7 +19,12 @@ pub struct Build {
     quiet: bool,
 
     /// Package to build (see `cargo help pkgid`)
-    #[clap(short = 'p', long = "package")]
+    #[clap(
+        short = 'p',
+        long = "package",
+        value_name = "SPEC",
+        multiple_values = true
+    )]
     packages: Vec<String>,
 
     /// Build all packages in the workspace
@@ -27,7 +32,7 @@ pub struct Build {
     workspace: bool,
 
     /// Exclude packages from the build
-    #[clap(long)]
+    #[clap(long, value_name = "SPEC", multiple_values = true)]
     exclude: Vec<String>,
 
     /// Alias for workspace (deprecated)
@@ -35,7 +40,7 @@ pub struct Build {
     all: bool,
 
     /// Number of parallel jobs, defaults to # of CPUs
-    #[clap(short = 'j', long)]
+    #[clap(short = 'j', long, value_name = "N")]
     jobs: Option<usize>,
 
     /// Build only this package's library
@@ -43,7 +48,7 @@ pub struct Build {
     lib: bool,
 
     /// Build only the specified binary
-    #[clap(long)]
+    #[clap(long, value_name = "NAME", multiple_values = true)]
     bin: Vec<String>,
 
     /// Build all binaries
@@ -51,7 +56,7 @@ pub struct Build {
     bins: bool,
 
     /// Build only the specified example
-    #[clap(long)]
+    #[clap(long, value_name = "NAME", multiple_values = true)]
     example: Vec<String>,
 
     /// Build all examples
@@ -59,7 +64,7 @@ pub struct Build {
     examples: bool,
 
     /// Build only the specified test target
-    #[clap(long)]
+    #[clap(long, value_name = "NAME", multiple_values = true)]
     test: Vec<String>,
 
     /// Build all tests
@@ -67,7 +72,7 @@ pub struct Build {
     tests: bool,
 
     /// Build only the specified bench target
-    #[clap(long)]
+    #[clap(long, value_name = "NAME", multiple_values = true)]
     bench: Vec<String>,
 
     /// Build all benches
@@ -87,7 +92,7 @@ pub struct Build {
     profile: Option<String>,
 
     /// Space or comma separated list of features to activate
-    #[clap(long)]
+    #[clap(long, multiple_values = true)]
     features: Vec<String>,
 
     /// Activate all available features
@@ -119,7 +124,7 @@ pub struct Build {
     ignore_rust_version: bool,
 
     /// Error format
-    #[clap(long, value_name = "FMT")]
+    #[clap(long, value_name = "FMT", multiple_values = true)]
     message_format: Vec<String>,
 
     /// Output the build plan in JSON (unstable)
@@ -155,11 +160,11 @@ pub struct Build {
     offline: bool,
 
     /// Override a configuration value (unstable)
-    #[clap(long, value_name = "KEY=VALUE")]
+    #[clap(long, value_name = "KEY=VALUE", multiple_values = true)]
     config: Vec<String>,
 
     /// Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details
-    #[clap(short = 'Z', value_name = "FLAG")]
+    #[clap(short = 'Z', value_name = "FLAG", multiple_values = true)]
     unstable_flags: Vec<String>,
 }
 
