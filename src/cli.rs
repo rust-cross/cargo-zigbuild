@@ -1,9 +1,11 @@
+use std::env;
 use std::path::PathBuf;
 use std::process::{self, Command};
 use std::str;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use fs_err as fs;
 
 use crate::zig::{prepare_zig_linker, Zig};
 
@@ -306,6 +308,8 @@ impl Build {
                 build.env("TARGET_CC", &zig_cc);
                 build.env("TARGET_CXX", &zig_cxx);
                 build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+
+                self.setup_os_deps()?;
             }
         }
 
@@ -313,6 +317,35 @@ impl Build {
         let status = child.wait().expect("Failed to wait on cargo build process");
         if !status.success() {
             process::exit(status.code().unwrap_or(1));
+        }
+        Ok(())
+    }
+
+    fn setup_os_deps(&self) -> Result<()> {
+        if let Some(target) = self.target.as_ref() {
+            if target.contains("apple") {
+                let target_dir = self
+                    .target_dir
+                    .clone()
+                    .or_else(|| self.manifest_path.as_ref().map(|m| m.join("target")))
+                    .unwrap_or_else(|| {
+                        env::current_dir()
+                            .expect("Failed to get current working directory")
+                            .join("target")
+                    })
+                    .join(target);
+                let profile = match self.profile.as_deref() {
+                    Some("dev" | "test") | None => "debug",
+                    Some("release" | "bench") => "release",
+                    Some(profile) => profile,
+                };
+                let deps_dir = target_dir.join(profile).join("deps");
+                fs::create_dir_all(&deps_dir)?;
+                fs::write(
+                    deps_dir.join("libiconv.tbd"),
+                    include_str!("macos/libiconv.tbd"),
+                )?;
+            }
         }
         Ok(())
     }

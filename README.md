@@ -29,12 +29,13 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 
 ## Limitations
 
-Currently only Linux targets are supported, other target platforms can be added if you can make it work,
+Currently only Linux and macOS targets are supported, other target platforms can be added if you can make it work,
 pull requests are welcome.
 
 Known upstream zig issues:
 
-1. [cross-compiling to macOS with a dependency on iconv](https://github.com/ziglang/zig/issues/10485)
+1. [cross-compiling to macOS with a dependency on iconv](https://github.com/ziglang/zig/issues/10485): We provide
+a bundled version of `libiconv.tbd` to zig for linking to make it work.
 
 ## License
 

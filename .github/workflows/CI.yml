@@ -38,15 +38,19 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-      - name: Test glibc build
+      - name: Linux - Test glibc build
         run: |
           rustup target add aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
-      - name: Test musl libc build
+      - name: Linux - Test musl libc build
         run: |
           rustup target add aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl
+      - name: macOS - Test
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo run zigbuild --target aarch64-apple-darwin
 
   fmt:
     name: Rustfmt
