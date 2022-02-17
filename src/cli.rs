@@ -327,7 +327,11 @@ impl Build {
                 let target_dir = self
                     .target_dir
                     .clone()
-                    .or_else(|| self.manifest_path.as_ref().map(|m| m.join("target")))
+                    .or_else(|| {
+                        self.manifest_path
+                            .as_ref()
+                            .map(|m| m.parent().unwrap().join("target"))
+                    })
                     .unwrap_or_else(|| {
                         env::current_dir()
                             .expect("Failed to get current working directory")
