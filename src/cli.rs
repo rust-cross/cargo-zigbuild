@@ -315,6 +315,10 @@ impl Build {
                 build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
 
                 self.setup_os_deps()?;
+
+                if rust_target.contains("windows-gnu") {
+                    build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                }
             }
         }
 
