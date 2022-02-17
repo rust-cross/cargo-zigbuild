@@ -43,7 +43,9 @@ impl Zig {
             .position(|x| x == "-target")
             .and_then(|index| cmd_args.get(index + 1));
         let is_musl = target.map(|x| x.contains("musl")).unwrap_or_default();
-        let is_windows_gnu = target.map(|x| x.contains("windows")).unwrap_or_default();
+        let is_windows_gnu = target
+            .map(|x| x.contains("windows-gnu"))
+            .unwrap_or_default();
         // Replace libgcc_s with libunwind
         let cmd_args: Vec<String> = cmd_args
             .iter()

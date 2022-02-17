@@ -29,7 +29,8 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 
 ## Limitations
 
-Currently only Linux and macOS targets are supported, other target platforms can be added if you can make it work,
+Currently only Linux, macOS and Windows gnu targets are supported,
+other target platforms can be added if you can make it work,
 pull requests are welcome.
 
 Known upstream zig issues:
