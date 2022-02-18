@@ -29,9 +29,15 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 
 ## Limitations
 
-Currently only Linux, macOS and Windows gnu targets are supported,
-other target platforms can be added if you can make it work,
-pull requests are welcome.
+1. Currently only Linux, macOS and Windows gnu targets are supported,
+   other target platforms can be added if you can make it work,
+   pull requests are welcome.
+2. If the `--target` argument is the same as the host target,
+   for example when compiling from Linux x86\_64 to Linux x86\_64,
+   Cargo by default also uses zig as linker for build dependencies like build scripts and proc-macros
+   which might not work (See [#4](https://github.com/messense/cargo-zigbuild/issues/4)).
+   You need to enable the unstable `target-applies-to-host` option and set `target-applies-to-host = false`
+   in cargo configuration file, for example `.cargo/config.toml`, to make it work.
 
 Known upstream zig issues:
 
