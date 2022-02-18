@@ -239,7 +239,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         .truncate(true)
         .mode(0o700)
         .open(path)?;
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo_zigbuild") {
+    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
     } else {
         env::current_exe()?
@@ -259,7 +259,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
 #[cfg(not(target_family = "unix"))]
 fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     let mut custom_linker_file = fs::File::create(path)?;
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo_zigbuild") {
+    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
     } else {
         env::current_exe()?
