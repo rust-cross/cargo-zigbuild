@@ -1,13 +1,12 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::{self, Command};
-use std::str;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use fs_err as fs;
 
-use crate::zig::{prepare_zig_linker, Zig};
+use crate::zig::prepare_zig_linker;
 
 /// Compile a local package and all of its dependencies
 /// using zig as linker
@@ -166,20 +165,6 @@ pub struct Build {
     /// Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details
     #[clap(short = 'Z', value_name = "FLAG", multiple_values = true)]
     unstable_flags: Vec<String>,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Parser)]
-#[clap(
-    version,
-    name = "cargo",
-    global_setting(clap::AppSettings::DeriveDisplayOrder)
-)]
-pub enum Opt {
-    #[clap(name = "zigbuild")]
-    Build(Build),
-    #[clap(subcommand)]
-    Zig(Zig),
 }
 
 impl Build {
