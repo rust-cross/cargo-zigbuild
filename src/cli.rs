@@ -104,7 +104,7 @@ pub struct Build {
     no_default_features: bool,
 
     /// Build for the target triple
-    #[clap(long, value_name = "TRIPLE")]
+    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET")]
     target: Option<String>,
 
     /// Directory for all generated artifacts
