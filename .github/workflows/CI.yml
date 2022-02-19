@@ -38,7 +38,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-      - name: Linux - Test x86_64
+      - name: Linux - Test x86_64 build
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu
@@ -53,12 +53,12 @@ jobs:
         run: |
           rustup target add aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl
-      - name: macOS - Test
+      - name: macOS - Test build
         run: |
           rustup target add aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin --release
-      - name: Windows - Test gnu
+      - name: Windows - Test gnu build
         run: |
           rustup target add x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu
