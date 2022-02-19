@@ -46,76 +46,55 @@ impl Zig {
         let is_windows_gnu = target
             .map(|x| x.contains("windows-gnu"))
             .unwrap_or_default();
-        // Replace libgcc_s with libunwind
-        let cmd_args: Vec<String> = cmd_args
-            .iter()
-            .map(|arg| {
-                let arg = if arg == "-lgcc_s" {
-                    "-lunwind".to_string()
-                } else if is_windows_gnu && arg == "-lgcc_eh" {
-                    "-lc++".to_string()
-                } else if arg.starts_with('@') && arg.ends_with("linker-arguments") {
-                    // rustc passes arguments to linker via an @-file when arguments are too long
-                    // See https://github.com/rust-lang/rust/issues/41190
-                    let content = fs::read(arg.trim_start_matches('@'))?;
-                    let link_args: Vec<_> = str::from_utf8(&content)?
-                        .split('\n')
-                        .filter_map(|arg| {
-                            if arg == "-lgcc_s" {
-                                return Some("-lunwind");
-                            } else if is_windows_gnu && arg == "-lgcc_eh" {
-                                return Some("-lc++");
-                            }
-                            if is_musl {
-                                if arg.ends_with(".o")
-                                    && arg.contains("self-contained")
-                                    && arg.contains("crt")
-                                {
-                                    return None;
-                                }
-                                if arg.ends_with(".rlib") && arg.contains("liblibc-") {
-                                    return None;
-                                }
-                            }
-                            if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
-                                return None;
-                            }
-                            Some(arg)
-                        })
-                        .collect();
-                    fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
-                    arg.to_string()
-                } else {
-                    arg.to_string()
-                };
-                Ok(arg)
-            })
-            .filter(|arg| {
+
+        let filter_link_arg = |arg: &str| {
+            if arg == "-lgcc_s" {
+                // Replace libgcc_s with libunwind
+                return Some("-lunwind".to_string());
+            } else if is_windows_gnu && arg == "-lgcc_eh" {
+                // zig doesn't provide gcc_eh alternative
+                // We use libc++ to replace it on windows gnu targets
+                return Some("-lc++".to_string());
+            }
+            if is_musl {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
-                if let Ok(arg) = arg.as_ref() {
-                    if is_musl {
-                        if arg.ends_with(".o")
-                            && arg.contains("self-contained")
-                            && arg.contains("crt")
-                        {
-                            return false;
-                        }
-                        if arg.ends_with(".rlib") && arg.contains("liblibc-") {
-                            return false;
-                        }
-                    }
-                    if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
-                        return false;
-                    }
+                if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
+                    return None;
                 }
-                true
-            })
-            .collect::<Result<_>>()?;
+                if arg.ends_with(".rlib") && arg.contains("liblibc-") {
+                    return None;
+                }
+            }
+            if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
+                return None;
+            }
+            Some(arg.to_string())
+        };
+
+        let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
+        for arg in cmd_args {
+            let arg = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
+                // rustc passes arguments to linker via an @-file when arguments are too long
+                // See https://github.com/rust-lang/rust/issues/41190
+                let content = fs::read(arg.trim_start_matches('@'))?;
+                let link_args: Vec<_> = str::from_utf8(&content)?
+                    .split('\n')
+                    .filter_map(filter_link_arg)
+                    .collect();
+                fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
+                Some(arg.to_string())
+            } else {
+                filter_link_arg(arg)
+            };
+            if let Some(arg) = arg {
+                new_cmd_args.push(arg);
+            }
+        }
         let (zig, zig_args) = Self::find_zig()?;
         let mut child = Command::new(zig)
             .args(zig_args)
             .arg(cmd)
-            .args(cmd_args)
+            .args(new_cmd_args)
             .spawn()
             .with_context(|| format!("Failed to run `zig {}`", cmd))?;
         let status = child.wait().expect("Failed to wait on zig child process");
