@@ -51,10 +51,15 @@ impl Zig {
             if arg == "-lgcc_s" {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
-            } else if is_windows_gnu && arg == "-lgcc_eh" {
-                // zig doesn't provide gcc_eh alternative
-                // We use libc++ to replace it on windows gnu targets
-                return Some("-lc++".to_string());
+            }
+            if is_windows_gnu {
+                if arg == "-lgcc_eh" {
+                    // zig doesn't provide gcc_eh alternative
+                    // We use libc++ to replace it on windows gnu targets
+                    return Some("-lc++".to_string());
+                } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
+                    return None;
+                }
             }
             if is_musl {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
@@ -64,9 +69,6 @@ impl Zig {
                 if arg.ends_with(".rlib") && arg.contains("liblibc-") {
                     return None;
                 }
-            }
-            if is_windows_gnu && (arg == "-l:libpthread.a" || arg == "-lgcc") {
-                return None;
             }
             Some(arg.to_string())
         };

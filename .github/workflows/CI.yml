@@ -62,10 +62,12 @@ jobs:
         run: |
           rustup target add x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu
+          cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
       - name: Windows - Test run
         if: matrix.os == 'windows-latest'
         run: |
           ./target/x86_64-pc-windows-gnu/debug/cargo-zigbuild.exe zigbuild --help
+          ./tests/hello-windows/target/x86_64-pc-windows-gnu/debug/hello-windows.exe
 
   fmt:
     name: Rustfmt
