@@ -1,5 +1,6 @@
-mod cli;
+mod build;
+pub mod macos;
 mod zig;
 
-pub use cli::Build;
+pub use build::Build;
 pub use zig::Zig;

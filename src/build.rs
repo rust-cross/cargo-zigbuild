@@ -7,6 +7,7 @@ use anyhow::{bail, format_err, Context, Result};
 use clap::Parser;
 use fs_err as fs;
 
+use crate::macos::LIBICONV_TBD;
 use crate::zig::prepare_zig_linker;
 
 /// Compile a local package and all of its dependencies
@@ -351,10 +352,7 @@ impl Build {
                 };
                 let deps_dir = target_dir.join(profile).join("deps");
                 fs::create_dir_all(&deps_dir)?;
-                fs::write(
-                    deps_dir.join("libiconv.tbd"),
-                    include_str!("macos/libiconv.tbd"),
-                )?;
+                fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
             }
         }
         Ok(())
