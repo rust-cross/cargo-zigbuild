@@ -27,7 +27,7 @@ to compile for glibc 2.17 with the `aarch64-unknown-linux-gnu` target:
 cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 ```
 
-## Limitations
+## Caveats
 
 1. Currently only Linux, macOS and Windows gnu targets are supported,
    other target platforms can be added if you can make it work,
@@ -41,10 +41,8 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 
 Known upstream zig issues:
 
-1. [cross-compiling to macOS with a dependency on iconv](https://github.com/ziglang/zig/issues/10485): We provide
-   a bundled version of `libiconv.tbd` to zig for linking to make it work.
-2. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
-   Some Rust target isn't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`
+1. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
+   Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`
 
 ## License
 
