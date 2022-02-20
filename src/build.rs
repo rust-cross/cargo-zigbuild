@@ -11,13 +11,13 @@ use crate::macos::LIBICONV_TBD;
 use crate::zig::prepare_zig_linker;
 
 /// Compile a local package and all of its dependencies
-/// using zig as linker
+/// using zig as the linker
 #[derive(Debug, Parser)]
 #[clap(setting = clap::AppSettings::DeriveDisplayOrder, after_help = "Run `cargo help build` for more detailed information.")]
 pub struct Build {
     /// Do not print cargo log messages
     #[clap(short = 'q', long)]
-    quiet: bool,
+    pub quiet: bool,
 
     /// Package to build (see `cargo help pkgid`)
     #[clap(
@@ -26,150 +26,151 @@ pub struct Build {
         value_name = "SPEC",
         multiple_values = true
     )]
-    packages: Vec<String>,
+    pub packages: Vec<String>,
 
     /// Build all packages in the workspace
     #[clap(long)]
-    workspace: bool,
+    pub workspace: bool,
 
     /// Exclude packages from the build
     #[clap(long, value_name = "SPEC", multiple_values = true)]
-    exclude: Vec<String>,
+    pub exclude: Vec<String>,
 
     /// Alias for workspace (deprecated)
     #[clap(long)]
-    all: bool,
+    pub all: bool,
 
     /// Number of parallel jobs, defaults to # of CPUs
     #[clap(short = 'j', long, value_name = "N")]
-    jobs: Option<usize>,
+    pub jobs: Option<usize>,
 
     /// Build only this package's library
     #[clap(long)]
-    lib: bool,
+    pub lib: bool,
 
     /// Build only the specified binary
     #[clap(long, value_name = "NAME", multiple_values = true)]
-    bin: Vec<String>,
+    pub bin: Vec<String>,
 
     /// Build all binaries
     #[clap(long)]
-    bins: bool,
+    pub bins: bool,
 
     /// Build only the specified example
     #[clap(long, value_name = "NAME", multiple_values = true)]
-    example: Vec<String>,
+    pub example: Vec<String>,
 
     /// Build all examples
     #[clap(long)]
-    examples: bool,
+    pub examples: bool,
 
     /// Build only the specified test target
     #[clap(long, value_name = "NAME", multiple_values = true)]
-    test: Vec<String>,
+    pub test: Vec<String>,
 
     /// Build all tests
     #[clap(long)]
-    tests: bool,
+    pub tests: bool,
 
     /// Build only the specified bench target
     #[clap(long, value_name = "NAME", multiple_values = true)]
-    bench: Vec<String>,
+    pub bench: Vec<String>,
 
     /// Build all benches
     #[clap(long)]
-    benches: bool,
+    pub benches: bool,
 
     /// Build all targets
     #[clap(long)]
-    all_targets: bool,
+    pub all_targets: bool,
 
     /// Build artifacts in release mode, with optimizations
     #[clap(long)]
-    release: bool,
+    pub release: bool,
 
     /// Build artifacts with the specified Cargo profile
     #[clap(long, value_name = "PROFILE-NAME")]
-    profile: Option<String>,
+    pub profile: Option<String>,
 
     /// Space or comma separated list of features to activate
     #[clap(long, multiple_values = true)]
-    features: Vec<String>,
+    pub features: Vec<String>,
 
     /// Activate all available features
     #[clap(long)]
-    all_features: bool,
+    pub all_features: bool,
 
     /// Do not activate the `default` feature
     #[clap(long)]
-    no_default_features: bool,
+    pub no_default_features: bool,
 
     /// Build for the target triple
     #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET")]
-    target: Option<String>,
+    pub target: Option<String>,
 
     /// Directory for all generated artifacts
     #[clap(long, value_name = "DIRECTORY", parse(from_os_str))]
-    target_dir: Option<PathBuf>,
+    pub target_dir: Option<PathBuf>,
 
     /// Copy final artifacts to this directory (unstable)
     #[clap(long, value_name = "PATH", parse(from_os_str))]
-    out_dir: Option<PathBuf>,
+    pub out_dir: Option<PathBuf>,
 
     /// Path to Cargo.toml
     #[clap(long, value_name = "PATH", parse(from_os_str))]
-    manifest_path: Option<PathBuf>,
+    pub manifest_path: Option<PathBuf>,
 
     /// Ignore `rust-version` specification in packages
     #[clap(long)]
-    ignore_rust_version: bool,
+    pub ignore_rust_version: bool,
 
     /// Error format
     #[clap(long, value_name = "FMT", multiple_values = true)]
-    message_format: Vec<String>,
+    pub message_format: Vec<String>,
 
     /// Output the build plan in JSON (unstable)
     #[clap(long)]
-    build_plan: bool,
+    pub build_plan: bool,
 
     /// Output build graph in JSON (unstable)
     #[clap(long)]
-    unit_graph: bool,
+    pub unit_graph: bool,
 
     /// Outputs a future incompatibility report at the end of the build (unstable)
     #[clap(long)]
-    future_incompat_report: bool,
+    pub future_incompat_report: bool,
 
     /// Use verbose output (-vv very verbose/build.rs output)
     #[clap(short = 'v', long, parse(from_occurrences), max_occurrences = 2)]
-    verbose: usize,
+    pub verbose: usize,
 
     /// Coloring: auto, always, never
     #[clap(long, value_name = "WHEN")]
-    color: Option<String>,
+    pub color: Option<String>,
 
     /// Require Cargo.lock and cache are up to date
     #[clap(long)]
-    frozen: bool,
+    pub frozen: bool,
 
     /// Require Cargo.lock is up to date
     #[clap(long)]
-    locked: bool,
+    pub locked: bool,
 
     /// Run without accessing the network
     #[clap(long)]
-    offline: bool,
+    pub offline: bool,
 
     /// Override a configuration value (unstable)
     #[clap(long, value_name = "KEY=VALUE", multiple_values = true)]
-    config: Vec<String>,
+    pub config: Vec<String>,
 
     /// Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details
     #[clap(short = 'Z', value_name = "FLAG", multiple_values = true)]
-    unstable_flags: Vec<String>,
+    pub unstable_flags: Vec<String>,
 }
 
 impl Build {
+    /// Execute `cargo build` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
         let mut build = Command::new("cargo");
         build.arg("build");

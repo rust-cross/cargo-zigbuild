@@ -151,6 +151,8 @@ impl Zig {
     }
 }
 
+/// Prepare wrapper scripts for `zig cc` and `zig c++` and returns their paths
+///
 /// We want to use `zig cc` as linker and c compiler. We want to call `python -m ziglang cc`, but
 /// cargo only accepts a path to an executable as linker, so we add a wrapper script. We then also
 /// use the wrapper script to pass arguments and substitute an unsupported argument.
@@ -212,6 +214,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     Ok((zig_cc, zig_cxx))
 }
 
+/// Write a zig cc wrapper batch script for unix
 #[cfg(target_family = "unix")]
 fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     let mut custom_linker_file = OpenOptions::new()
