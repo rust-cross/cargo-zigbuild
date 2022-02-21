@@ -184,17 +184,18 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
+    let cc_args = "-g"; // prevent stripping
     let cc_args = match triple.operating_system {
         OperatingSystem::Linux => format!(
-            "-target {}-linux-{}{}",
-            arch, triple.environment, abi_suffix
+            "-target {}-linux-{}{} {}",
+            arch, triple.environment, abi_suffix, cc_args,
         ),
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
-            format!("-target {}-macos-gnu{}", arch, abi_suffix)
+            format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
         }
         OperatingSystem::Windows { .. } => format!(
-            "-target {}-windows-{}{}",
-            arch, triple.environment, abi_suffix
+            "-target {}-windows-{}{} {}",
+            arch, triple.environment, abi_suffix, cc_args,
         ),
         _ => bail!("unsupported target"),
     };
