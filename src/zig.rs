@@ -229,7 +229,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     } else {
         env::current_exe()?
     };
-    writeln!(&mut custom_linker_file, "#!/bin/bash")?;
+    writeln!(&mut custom_linker_file, "#!/usr/bin/env bash")?;
     writeln!(
         &mut custom_linker_file,
         "{} zig {} -- {} $@",
