@@ -1,9 +1,8 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::{self, Command};
-use std::str;
 
-use anyhow::{bail, format_err, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 use fs_err as fs;
 
@@ -295,9 +294,10 @@ impl Build {
 
         // setup zig as linker
         if let Some(target) = self.target.as_ref() {
-            let host_target = get_host_target()?;
+            let rustc_meta = rustc_version::version_meta()?;
+            let host_target = &rustc_meta.host;
             // we only setup zig as linker when target isn't exactly the same as host target
-            if host_target != *target {
+            if host_target != target {
                 if let Some(rust_target) = rust_target {
                     let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
                     let env_target = rust_target.to_uppercase().replace("-", "_");
@@ -309,6 +309,15 @@ impl Build {
 
                     if rust_target.contains("windows-gnu") {
                         build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                    }
+
+                    // Enable unstable `target-applies-to-host` option automatically for nightly Rust
+                    // when target is the same as host but may have specified glibc version
+                    if host_target == rust_target
+                        && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
+                    {
+                        build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
+                        build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
                     }
                 }
             }
@@ -358,38 +367,4 @@ impl Build {
         }
         Ok(())
     }
-}
-
-fn get_host_target() -> Result<String> {
-    let output = Command::new("rustc").arg("-vV").output();
-    let output = match output {
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            bail!(
-                "rustc, the rust compiler, is not installed or not in PATH. \
-                This package requires Rust and Cargo to compile extensions. \
-                Install it through the system's package manager or via https://rustup.rs/.",
-            );
-        }
-        Err(err) => {
-            return Err(err).context("Failed to run rustc to get the host target");
-        }
-        Ok(output) => output,
-    };
-
-    let output = str::from_utf8(&output.stdout).context("`rustc -vV` didn't return utf8 output")?;
-
-    let field = "host: ";
-    let host = output
-        .lines()
-        .find(|l| l.starts_with(field))
-        .map(|l| &l[field.len()..])
-        .ok_or_else(|| {
-            format_err!(
-                "`rustc -vV` didn't have a line for `{}`, got:\n{}",
-                field.trim(),
-                output
-            )
-        })?
-        .to_string();
-    Ok(host)
 }

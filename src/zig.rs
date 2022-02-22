@@ -69,6 +69,9 @@ impl Zig {
                 if arg.ends_with(".rlib") && arg.contains("liblibc-") {
                     return None;
                 }
+                if arg == "-lc" {
+                    return None;
+                }
             }
             Some(arg.to_string())
         };

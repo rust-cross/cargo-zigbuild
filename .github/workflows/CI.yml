@@ -24,12 +24,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        toolchain: [stable, nightly]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
@@ -42,6 +43,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu
+      - name: Linux - Test x86_64 glibc build
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain == 'nightly' }}
+        run: |
+          cargo run zigbuild --target x86_64-unknown-linux-gnu.2.17
       - name: Linux - Test glibc build
         run: |
           rustup target add aarch64-unknown-linux-gnu
