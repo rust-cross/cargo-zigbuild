@@ -37,8 +37,9 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
    for example when compiling from Linux x86\_64 to Linux x86\_64,
    Cargo by default also uses zig as linker for build dependencies like build scripts and proc-macros
    which might not work (See [#4](https://github.com/messense/cargo-zigbuild/issues/4)).
-   You need to use the nightly Rust compiler and enable the unstable [`target-applies-to-host`](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#target-applies-to-host) option
-   and set `target-applies-to-host = false` in cargo configuration file, for example `.cargo/config.toml`, to make it work.
+   You need to use the nightly Rust compiler then cargo-zigbuild will enable the unstable 
+   [`target-applies-to-host`](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#target-applies-to-host) option automatically
+   to make it work out of the box.
 
 Known upstream zig issues:
 
