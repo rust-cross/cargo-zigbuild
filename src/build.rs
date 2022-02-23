@@ -84,7 +84,7 @@ pub struct Build {
     pub all_targets: bool,
 
     /// Build artifacts in release mode, with optimizations
-    #[clap(long)]
+    #[clap(short = 'r', long)]
     pub release: bool,
 
     /// Build artifacts with the specified Cargo profile
