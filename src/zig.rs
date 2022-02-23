@@ -76,6 +76,16 @@ impl Zig {
             }
             Some(arg.to_string())
         };
+        let has_undefined_dynamic_lookup = |args: &[String]| {
+            let undefined = args
+                .iter()
+                .position(|x| x == "-undefined")
+                .and_then(|i| args.get(i + 1));
+            match undefined {
+                Some(x) if x == "dynamic_lookup" => true,
+                _ => false,
+            }
+        };
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
         for arg in cmd_args {
@@ -83,10 +93,13 @@ impl Zig {
                 // rustc passes arguments to linker via an @-file when arguments are too long
                 // See https://github.com/rust-lang/rust/issues/41190
                 let content = fs::read(arg.trim_start_matches('@'))?;
-                let link_args: Vec<_> = str::from_utf8(&content)?
+                let mut link_args: Vec<_> = str::from_utf8(&content)?
                     .split('\n')
                     .filter_map(filter_link_arg)
                     .collect();
+                if has_undefined_dynamic_lookup(&link_args) {
+                    link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
+                }
                 fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
                 Some(arg.to_string())
             } else {
@@ -95,6 +108,9 @@ impl Zig {
             if let Some(arg) = arg {
                 new_cmd_args.push(arg);
             }
+        }
+        if has_undefined_dynamic_lookup(&cmd_args) {
+            new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
         let (zig, zig_args) = Self::find_zig()?;
         let mut child = Command::new(zig)
