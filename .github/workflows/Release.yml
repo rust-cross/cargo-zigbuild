@@ -24,6 +24,11 @@ jobs:
         uses: messense/maturin-action@v1
         with:
           args: --no-sdist --release --out dist --strip --universal2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -78,6 +83,11 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --no-sdist --strip
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -132,6 +142,11 @@ jobs:
           manylinux: auto
           container: off
           args: --no-sdist --release -o dist --strip
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -158,3 +173,20 @@ jobs:
           file_glob: true
           overwrite: true
           tag: ${{ github.ref }}
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: [ macos, windows, linux ]
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: wheels
+      - name: Publish to PyPI
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_PASSWORD }}
+        uses: messense/maturin-action@v1
+        with:
+          command: upload
+          args: --skip-existing *
