@@ -11,7 +11,7 @@ use crate::zig::prepare_zig_linker;
 
 /// Compile a local package and all of its dependencies
 /// using zig as the linker
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Default, Parser)]
 #[clap(setting = clap::AppSettings::DeriveDisplayOrder, after_help = "Run `cargo help build` for more detailed information.")]
 pub struct Build {
     /// Do not print cargo log messages

@@ -13,7 +13,7 @@ use fs_err as fs;
 use target_lexicon::{OperatingSystem, Triple};
 
 /// Zig linker wrapper
-#[derive(Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 pub enum Zig {
     /// `zig cc` wrapper
     #[clap(name = "cc", trailing_var_arg = true)]
