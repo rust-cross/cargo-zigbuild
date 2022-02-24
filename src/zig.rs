@@ -10,7 +10,7 @@ use std::str;
 
 use anyhow::{bail, Context, Result};
 use fs_err as fs;
-use target_lexicon::{Architecture, OperatingSystem, Triple};
+use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]
@@ -201,6 +201,10 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         Architecture::X86_32(..) => "i386".to_string(),
         architecture => architecture.to_string(),
     };
+    let target_env = match (triple.architecture, triple.environment) {
+        (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
+        (_, environment) => environment,
+    };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
@@ -208,14 +212,14 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     let cc_args = match triple.operating_system {
         OperatingSystem::Linux => format!(
             "-target {}-linux-{}{} {}",
-            arch, triple.environment, abi_suffix, cc_args,
+            arch, target_env, abi_suffix, cc_args,
         ),
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
             format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
         }
         OperatingSystem::Windows { .. } => format!(
             "-target {}-windows-{}{} {}",
-            arch, triple.environment, abi_suffix, cc_args,
+            arch, target_env, abi_suffix, cc_args,
         ),
         _ => bail!("unsupported target"),
     };
