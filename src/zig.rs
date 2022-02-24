@@ -81,10 +81,7 @@ impl Zig {
                 .iter()
                 .position(|x| x == "-undefined")
                 .and_then(|i| args.get(i + 1));
-            match undefined {
-                Some(x) if x == "dynamic_lookup" => true,
-                _ => false,
-            }
+            matches!(undefined, Some(x) if x == "dynamic_lookup")
         };
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
@@ -109,7 +106,7 @@ impl Zig {
                 new_cmd_args.push(arg);
             }
         }
-        if has_undefined_dynamic_lookup(&cmd_args) {
+        if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
         let (zig, zig_args) = Self::find_zig()?;
