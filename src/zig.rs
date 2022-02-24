@@ -10,7 +10,7 @@ use std::str;
 
 use anyhow::{bail, Context, Result};
 use fs_err as fs;
-use target_lexicon::{OperatingSystem, Triple};
+use target_lexicon::{Architecture, OperatingSystem, Triple};
 
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]
@@ -196,7 +196,11 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         format!(".{}", abi_suffix)
     };
     let triple: Triple = rust_target.parse().unwrap();
-    let arch = triple.architecture.to_string();
+    let arch = match triple.architecture {
+        // zig target only has i386, no i586/i686
+        Architecture::X86_32(..) => "i386".to_string(),
+        architecture => architecture.to_string(),
+    };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
