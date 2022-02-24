@@ -10,6 +10,7 @@ use std::str;
 
 use anyhow::{bail, Context, Result};
 use fs_err as fs;
+use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
 /// Zig linker wrapper
@@ -46,11 +47,16 @@ impl Zig {
         let is_windows_gnu = target
             .map(|x| x.contains("windows-gnu"))
             .unwrap_or_default();
+        let is_arm = target.map(|x| x.contains("arm")).unwrap_or_default();
 
         let filter_link_arg = |arg: &str| {
             if arg == "-lgcc_s" {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
+            }
+            if is_arm && arg.ends_with(".rlib") && arg.contains("libcompiler_builtins-") {
+                // compiler-builtins is duplicated with zig's compiler-rt
+                return None;
             }
             if is_windows_gnu {
                 if arg == "-lgcc_eh" {
@@ -165,6 +171,19 @@ impl Zig {
             )
         }
     }
+
+    /// Find zig lib directory
+    pub fn lib_dir() -> Result<PathBuf> {
+        let (zig, zig_args) = Self::find_zig()?;
+        let output = Command::new(zig).args(zig_args).arg("env").output()?;
+        let zig_env: ZigEnv = serde_json::from_slice(&output.stdout)?;
+        Ok(PathBuf::from(zig_env.lib_dir))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ZigEnv {
+    lib_dir: String,
 }
 
 /// Prepare wrapper scripts for `zig cc` and `zig c++` and returns their paths

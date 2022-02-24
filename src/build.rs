@@ -6,8 +6,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use fs_err as fs;
 
+use crate::linux::ARM_FEATURES_H;
 use crate::macos::LIBICONV_TBD;
-use crate::zig::prepare_zig_linker;
+use crate::zig::{prepare_zig_linker, Zig};
 
 /// Compile a local package and all of its dependencies
 /// using zig as the linker
@@ -368,6 +369,19 @@ impl Build {
                 let deps_dir = target_dir.join(profile).join("deps");
                 fs::create_dir_all(&deps_dir)?;
                 fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
+            } else if target.contains("arm") && target.contains("linux") {
+                // See https://github.com/ziglang/zig/issues/3287
+                if let Ok(lib_dir) = Zig::lib_dir() {
+                    let arm_features_h = lib_dir
+                        .join("libc")
+                        .join("glibc")
+                        .join("sysdeps")
+                        .join("arm")
+                        .join("arm-features.h");
+                    if !arm_features_h.is_file() {
+                        fs::write(arm_features_h, ARM_FEATURES_H)?;
+                    }
+                }
             }
         }
         Ok(())
