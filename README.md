@@ -3,6 +3,7 @@
 [![CI](https://github.com/messense/cargo-zigbuild/workflows/CI/badge.svg)](https://github.com/messense/cargo-zigbuild/actions?query=workflow%3ACI)
 [![Crates.io](https://img.shields.io/crates/v/cargo-zigbuild.svg)](https://crates.io/crates/cargo-zigbuild)
 [![docs.rs](https://docs.rs/cargo-zigbuild/badge.svg)](https://docs.rs/cargo-zigbuild/)
+[![PyPI](https://img.shields.io/pypi/v/cargo-zigbuild.svg)](https://pypi.org/project/cargo-zigbuild)
 
 Compile Cargo project with [zig as linker](https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html) for [easier cross compiling](https://actually.fyi/posts/zig-makes-rust-cross-compilation-just-work/).
 
@@ -10,6 +11,12 @@ Compile Cargo project with [zig as linker](https://andrewkelley.me/post/zig-cc-p
 
 ```bash
 cargo install cargo-zigbuild
+```
+
+You can also install it using pip which will also install [`ziglang`](https://pypi.org/project/ziglang/) automatically:
+
+```bash
+pip install cargo-zigbuild
 ```
 
 ## Usage
