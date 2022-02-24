@@ -171,8 +171,19 @@ pub struct Build {
 impl Build {
     /// Execute `cargo build` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
+        let mut build = self.build_command("build")?;
+        let mut child = build.spawn().context("Failed to run cargo build")?;
+        let status = child.wait().expect("Failed to wait on cargo build process");
+        if !status.success() {
+            process::exit(status.code().unwrap_or(1));
+        }
+        Ok(())
+    }
+
+    /// Generate cargo subcommand
+    pub fn build_command(&self, subcommand: &str) -> Result<Command> {
         let mut build = Command::new("cargo");
-        build.arg("build");
+        build.arg(subcommand);
 
         let rust_target = self
             .target
@@ -322,13 +333,7 @@ impl Build {
                 }
             }
         }
-
-        let mut child = build.spawn().context("Failed to run cargo build")?;
-        let status = child.wait().expect("Failed to wait on cargo build process");
-        if !status.success() {
-            process::exit(status.code().unwrap_or(1));
-        }
-        Ok(())
+        Ok(build)
     }
 
     fn setup_os_deps(&self) -> Result<()> {
