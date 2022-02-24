@@ -167,6 +167,10 @@ pub struct Build {
     /// Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details
     #[clap(short = 'Z', value_name = "FLAG", multiple_values = true)]
     pub unstable_flags: Vec<String>,
+
+    /// Disable zig linker
+    #[clap(skip)]
+    pub disable_zig_linker: bool,
 }
 
 impl Build {
@@ -304,32 +308,34 @@ impl Build {
             build.arg("-Z").arg(flag);
         }
 
-        // setup zig as linker
-        if let Some(target) = self.target.as_ref() {
-            let rustc_meta = rustc_version::version_meta()?;
-            let host_target = &rustc_meta.host;
-            // we only setup zig as linker when target isn't exactly the same as host target
-            if host_target != target {
-                if let Some(rust_target) = rust_target {
-                    let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
-                    let env_target = rust_target.to_uppercase().replace("-", "_");
-                    build.env("TARGET_CC", &zig_cc);
-                    build.env("TARGET_CXX", &zig_cxx);
-                    build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+        if !self.disable_zig_linker {
+            // setup zig as linker
+            if let Some(target) = self.target.as_ref() {
+                let rustc_meta = rustc_version::version_meta()?;
+                let host_target = &rustc_meta.host;
+                // we only setup zig as linker when target isn't exactly the same as host target
+                if host_target != target {
+                    if let Some(rust_target) = rust_target {
+                        let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
+                        let env_target = rust_target.to_uppercase().replace("-", "_");
+                        build.env("TARGET_CC", &zig_cc);
+                        build.env("TARGET_CXX", &zig_cxx);
+                        build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
 
-                    self.setup_os_deps()?;
+                        self.setup_os_deps()?;
 
-                    if rust_target.contains("windows-gnu") {
-                        build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
-                    }
+                        if rust_target.contains("windows-gnu") {
+                            build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                        }
 
-                    // Enable unstable `target-applies-to-host` option automatically for nightly Rust
-                    // when target is the same as host but may have specified glibc version
-                    if host_target == rust_target
-                        && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
-                    {
-                        build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
-                        build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
+                        // Enable unstable `target-applies-to-host` option automatically for nightly Rust
+                        // when target is the same as host but may have specified glibc version
+                        if host_target == rust_target
+                            && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
+                        {
+                            build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
+                            build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
+                        }
                     }
                 }
             }
