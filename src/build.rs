@@ -317,7 +317,7 @@ impl Build {
                 if host_target != target {
                     if let Some(rust_target) = rust_target {
                         let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
-                        let env_target = rust_target.to_uppercase().replace("-", "_");
+                        let env_target = rust_target.to_uppercase().replace('-', "_");
                         build.env("TARGET_CC", &zig_cc);
                         build.env("TARGET_CXX", &zig_cxx);
                         build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
