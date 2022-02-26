@@ -33,13 +33,27 @@ jobs:
           path-type: inherit
           install: >-
             make
+      - name: Install GNU tar
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install gnu-tar
+          echo "/usr/local/opt/gnu-tar/libexec/gnubin" >> $GITHUB_PATH
       - uses: actions-rs/toolchain@v1
+        id: rustup
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
+      - name: Cache test crates cargo build
+        uses: actions/cache@v2
+        with:
+          path: |
+            tests/hello-tls/target
+            tests/hello-windows/target
+            tests/libhello/target
+          key: test-crates-${{ runner.os }}-${{ steps.rustup.outputs.rustc_hash }}-${{ hashFiles('tests/*/Cargo.lock') }}
       - name: Install zig
         run: pip3 install ziglang
       - uses: actions-rs/cargo@v1
