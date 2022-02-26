@@ -39,6 +39,7 @@ impl Zig {
             Zig::Cc { args } => ("cc", args),
             Zig::Cxx { args } => ("c++", args),
         };
+
         let target = cmd_args
             .iter()
             .position(|x| x == "-target")
@@ -48,6 +49,8 @@ impl Zig {
             .map(|x| x.contains("windows-gnu"))
             .unwrap_or_default();
         let is_arm = target.map(|x| x.contains("arm")).unwrap_or_default();
+
+        let rustc_ver = rustc_version::version()?;
 
         let filter_link_arg = |arg: &str| {
             if arg == "-lgcc_s" {
@@ -72,7 +75,13 @@ impl Zig {
                 if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
                     return None;
                 }
-                if arg.ends_with(".rlib") && arg.contains("liblibc-") {
+                if rustc_ver.major == 1
+                    && rustc_ver.minor < 59
+                    && arg.ends_with(".rlib")
+                    && arg.contains("liblibc-")
+                {
+                    // Rust distributes standalone libc.a in self-contained for musl since 1.59.0
+                    // See https://github.com/rust-lang/rust/pull/90527
                     return None;
                 }
                 if arg == "-lc" {
