@@ -235,16 +235,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
         (_, environment) => environment,
     };
-    let file_ext = if cfg!(windows) {
-        if is_mingw_shell() {
-            // mingw or msys2
-            "sh"
-        } else {
-            "bat"
-        }
-    } else {
-        "sh"
-    };
+    let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
     let cc_args = "-g"; // prevent stripping
