@@ -10,6 +10,8 @@ use std::str;
 
 use anyhow::{bail, Context, Result};
 use fs_err as fs;
+#[cfg(not(target_family = "unix"))]
+use path_slash::PathBufExt;
 use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
@@ -233,7 +235,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
         (_, environment) => environment,
     };
-    let file_ext = if cfg!(windows) { "bat" } else { "sh" };
+    let file_ext = if cfg!(windows) {
+        if is_mingw_shell() {
+            // mingw or msys2
+            "sh"
+        } else {
+            "bat"
+        }
+    } else {
+        "sh"
+    };
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
     let cc_args = "-g"; // prevent stripping
@@ -301,12 +312,19 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     } else {
         env::current_exe()?
     };
+    let current_exe = if is_mingw_shell() {
+        current_exe.to_slash_lossy()
+    } else {
+        current_exe.display().to_string()
+    };
     writeln!(
         &mut custom_linker_file,
         "{} zig {} -- {} %*",
-        current_exe.display(),
-        command,
-        args
+        current_exe, command, args
     )?;
     Ok(())
+}
+
+pub(crate) fn is_mingw_shell() -> bool {
+    env::var_os("MSYSTEM").is_some() && env::var_os("SHELL").is_some()
 }

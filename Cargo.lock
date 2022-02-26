@@ -39,6 +39,7 @@ dependencies = [
  "clap",
  "dirs",
  "fs-err",
+ "path-slash",
  "rustc_version",
  "semver",
  "serde",
@@ -183,6 +184,12 @@ checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "path-slash"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cacbb3c4ff353b534a67fb8d7524d00229da4cb1dc8c79f4db96e375ab5b619"
 
 [[package]]
 name = "proc-macro-error"

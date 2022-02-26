@@ -15,6 +15,7 @@ anyhow = "1.0.53"
 clap = { version = "3.1.2", features = ["derive", "env", "wrap_help"] }
 dirs = "4.0.0"
 fs-err = "2.6.0"
+path-slash = "0.1.4"
 rustc_version = "0.4.0"
 semver = "1.0.5"
 serde = { version = "1.0.136", features = ["derive"] }

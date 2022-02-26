@@ -5,10 +5,11 @@ use std::process::{self, Command};
 use anyhow::{Context, Result};
 use clap::Parser;
 use fs_err as fs;
+use path_slash::PathBufExt;
 
 use crate::linux::ARM_FEATURES_H;
 use crate::macos::LIBICONV_TBD;
-use crate::zig::{prepare_zig_linker, Zig};
+use crate::zig::{is_mingw_shell, prepare_zig_linker, Zig};
 
 /// Compile a local package and all of its dependencies
 /// using zig as the linker
@@ -316,11 +317,18 @@ impl Build {
                 // we only setup zig as linker when target isn't exactly the same as host target
                 if host_target != target {
                     if let Some(rust_target) = rust_target {
-                        let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
                         let env_target = rust_target.to_uppercase().replace('-', "_");
-                        build.env("TARGET_CC", &zig_cc);
-                        build.env("TARGET_CXX", &zig_cxx);
-                        build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+                        let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
+                        if is_mingw_shell() {
+                            let zig_cc = zig_cc.to_slash_lossy();
+                            build.env("TARGET_CC", &zig_cc);
+                            build.env("TARGET_CXX", &zig_cxx.to_slash_lossy());
+                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+                        } else {
+                            build.env("TARGET_CC", &zig_cc);
+                            build.env("TARGET_CXX", &zig_cxx);
+                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+                        }
 
                         self.setup_os_deps()?;
 
