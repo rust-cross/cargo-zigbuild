@@ -26,9 +26,9 @@ on macOS, Windows and Linux you can also install zig from PyPI via `pip3 install
 2. Install Rust target via rustup, for example, `rustup target add aarch64-unknown-linux-gnu`
 3. Run `cargo zigbuild`, for example, `cargo zigbuild --target aarch64-unknown-linux-gnu`
 
-### Specify libc version
+### Specify glibc version
 
-`cargo zigbuild` supports passing libc version in `--target` option, for example,
+`cargo zigbuild` supports passing glibc version in `--target` option, for example,
 to compile for glibc 2.17 with the `aarch64-unknown-linux-gnu` target:
 
 ```bash
@@ -47,6 +47,7 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
    You need to use the nightly Rust compiler then cargo-zigbuild will enable the unstable 
    [`target-applies-to-host`](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#target-applies-to-host) option automatically
    to make it work out of the box.
+3. Only current Rust **stable** and **nightly** versions are regularly tested on CI, other versions may not work.
 
 Known upstream zig issues:
 
