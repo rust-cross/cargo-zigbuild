@@ -54,6 +54,8 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
           cargo run zigbuild --target arm-unknown-linux-gnueabihf
+
+          cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-tls/Cargo.toml
           # Test building shared library
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/libhello/Cargo.toml
       - name: Linux - Test musl libc build
