@@ -1,8 +1,7 @@
 #[tokio::main]
 async fn main() {
     let response = reqwest::Client::new()
-        .post("http://www.baidu.com")
-        .form(&[("one", "1")])
+        .get("http://www.baidu.com")
         .send()
         .await
         .expect("send");
