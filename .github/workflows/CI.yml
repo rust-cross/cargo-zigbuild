@@ -27,12 +27,6 @@ jobs:
         toolchain: [stable, nightly]
     steps:
       - uses: actions/checkout@v2
-      - uses: msys2/setup-msys2@v2
-        if: matrix.os == 'windows-latest'
-        with:
-          path-type: inherit
-          install: >-
-            make
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -67,12 +61,6 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-tls/Cargo.toml
-      - name: Linux - Test glibc build openssl
-        if: matrix.os == 'windows-latest'
-        shell: msys2 {0}
-        run: |
-          rustup target add x86_64-unknown-linux-gnu
-          cargo run zigbuild --target x86_64-unknown-linux-gnu --manifest-path tests/hello-tls/Cargo.toml
       - name: Linux - Test musl libc build
         run: |
           rustup target add aarch64-unknown-linux-musl
