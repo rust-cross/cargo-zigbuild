@@ -207,7 +207,7 @@ impl Build {
             build.arg("--workspace");
         }
         for item in &self.exclude {
-            build.arg("--excude").arg(item);
+            build.arg("--exclude").arg(item);
         }
         if self.all {
             build.arg("--all");
