@@ -125,9 +125,7 @@ impl Zig {
         if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
-        let (zig, zig_args) = Self::find_zig()?;
-        let mut child = Command::new(zig)
-            .args(zig_args)
+        let mut child = Self::command()?
             .arg(cmd)
             .args(new_cmd_args)
             .spawn()
@@ -137,6 +135,14 @@ impl Zig {
             process::exit(status.code().unwrap_or(1));
         }
         Ok(())
+    }
+
+    /// Build the zig command line
+    pub fn command() -> Result<Command> {
+        let (zig, zig_args) = Self::find_zig()?;
+        let mut cmd = Command::new(zig);
+        cmd.args(zig_args);
+        Ok(cmd)
     }
 
     /// Search for `python -m ziglang` first and for `zig` second.
