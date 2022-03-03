@@ -1,5 +1,4 @@
-use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
 use anyhow::{Context, Result};
@@ -354,20 +353,18 @@ impl Build {
     fn setup_os_deps(&self) -> Result<()> {
         if let Some(target) = self.target.as_ref() {
             if target.contains("apple") {
-                let target_dir = self
-                    .target_dir
-                    .clone()
-                    .or_else(|| {
-                        self.manifest_path
-                            .as_ref()
-                            .map(|m| m.parent().unwrap().join("target"))
-                    })
-                    .unwrap_or_else(|| {
-                        env::current_dir()
-                            .expect("Failed to get current working directory")
-                            .join("target")
-                    })
-                    .join(target);
+                let target_dir = if let Some(target_dir) = self.target_dir.clone() {
+                    target_dir.join(target)
+                } else {
+                    let manifest_path = self
+                        .manifest_path
+                        .as_deref()
+                        .unwrap_or_else(|| Path::new("Cargo.toml"));
+                    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+                    metadata_cmd.manifest_path(&manifest_path);
+                    let metadata = metadata_cmd.exec()?;
+                    metadata.target_directory.into_std_path_buf().join(target)
+                };
                 let profile = match self.profile.as_deref() {
                     Some("dev" | "test") => "debug",
                     Some("release" | "bench") => "release",
