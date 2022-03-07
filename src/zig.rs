@@ -15,6 +15,8 @@ use path_slash::PathBufExt;
 use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
+use crate::linux::{FCNTL_H, FCNTL_MAP};
+
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]
 pub enum Zig {
@@ -125,6 +127,7 @@ impl Zig {
         if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
+
         let mut child = Self::command()?
             .arg(cmd)
             .args(new_cmd_args)
@@ -198,6 +201,15 @@ impl Zig {
     }
 }
 
+fn cache_dir() -> Result<PathBuf> {
+    let zig_linker_dir = dirs::cache_dir()
+        // If the really is no cache dir, cwd will also do
+        .unwrap_or_else(|| env::current_dir().expect("Failed to get current dir"))
+        .join(env!("CARGO_PKG_NAME"))
+        .join(env!("CARGO_PKG_VERSION"));
+    Ok(zig_linker_dir)
+}
+
 #[derive(Debug, Deserialize)]
 struct ZigEnv {
     lib_dir: String,
@@ -245,7 +257,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     let zig_cc = format!("zigcc-{}.{}", target, file_ext);
     let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
     let cc_args = "-g"; // prevent stripping
-    let cc_args = match triple.operating_system {
+    let mut cc_args = match triple.operating_system {
         OperatingSystem::Linux => format!(
             "-target {}-linux-{}{} {}",
             arch, target_env, abi_suffix, cc_args,
@@ -260,12 +272,43 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         _ => bail!("unsupported target"),
     };
 
-    let zig_linker_dir = dirs::cache_dir()
-        // If the really is no cache dir, cwd will also do
-        .unwrap_or_else(|| env::current_dir().expect("Failed to get current dir"))
-        .join(env!("CARGO_PKG_NAME"))
-        .join(env!("CARGO_PKG_VERSION"));
+    let zig_linker_dir = cache_dir()?;
     fs::create_dir_all(&zig_linker_dir)?;
+
+    let fcntl_map = zig_linker_dir.join("fcntl.map");
+    fs::write(&fcntl_map, FCNTL_MAP)?;
+    let fcntl_h = zig_linker_dir.join("fcntl.h");
+    fs::write(&fcntl_h, FCNTL_H)?;
+
+    if triple.operating_system == OperatingSystem::Linux
+        && matches!(
+            triple.environment,
+            Environment::Gnu
+                | Environment::Gnuspe
+                | Environment::Gnux32
+                | Environment::Gnueabi
+                | Environment::Gnuabi64
+                | Environment::GnuIlp32
+                | Environment::Gnueabihf
+        )
+    {
+        let glibc_version = if abi_suffix.is_empty() {
+            (2, 17)
+        } else {
+            let mut parts = abi_suffix[1..].split('.');
+            let major: usize = parts.next().unwrap().parse()?;
+            let minor: usize = parts.next().unwrap().parse()?;
+            (major, minor)
+        };
+        // See https://github.com/ziglang/zig/issues/9485
+        if glibc_version < (2, 28) {
+            cc_args.push_str(&format!(
+                " -Wl,--version-script={} -include {}",
+                fcntl_map.display(),
+                fcntl_h.display()
+            ));
+        }
+    }
 
     let zig_cc = zig_linker_dir.join(zig_cc);
     let zig_cxx = zig_linker_dir.join(zig_cxx);
