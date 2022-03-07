@@ -53,6 +53,7 @@ Known upstream zig issues:
 
 1. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
    Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`
+2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485)
 
 ## License
 
