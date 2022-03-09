@@ -80,6 +80,7 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
           cargo run zigbuild --target arm-unknown-linux-gnueabihf
 
+          cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
           # Test building shared library
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/libhello/Cargo.toml
       - name: Linux - Test glibc build openssl
@@ -96,6 +97,7 @@ jobs:
         run: |
           rustup target add aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl
+          cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
       - name: macOS - Test build
         run: |
           rustup target add aarch64-apple-darwin
