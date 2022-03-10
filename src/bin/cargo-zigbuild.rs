@@ -9,7 +9,7 @@ use clap::Parser;
     global_setting(clap::AppSettings::DeriveDisplayOrder)
 )]
 pub enum Opt {
-    #[clap(name = "zigbuild")]
+    #[clap(name = "zigbuild", alias = "build")]
     Build(Build),
     #[clap(subcommand)]
     Zig(Zig),
