@@ -1,6 +1,6 @@
 [package]
 name = "cargo-zigbuild"
-version = "0.6.4"
+version = "0.6.5"
 edition = "2018"
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
