@@ -26,10 +26,12 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.zig == 'master' }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         toolchain: [stable, nightly]
+        zig: [0.9.1, master]
     steps:
       - uses: actions/checkout@v2
       - uses: msys2/setup-msys2@v2
@@ -60,7 +62,10 @@ jobs:
             tests/libhello/target
           key: test-crates-${{ runner.os }}-${{ steps.rustup.outputs.rustc_hash }}-${{ hashFiles('tests/*/Cargo.lock') }}
       - name: Install zig
-        run: pip3 install ziglang
+        uses: goto-bus-stop/setup-zig@v1
+        with:
+          version: ${{ matrix.zig }}
+      - run: zig version
       - uses: actions-rs/cargo@v1
         with:
           command: build
