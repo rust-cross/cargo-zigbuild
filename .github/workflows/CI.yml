@@ -26,7 +26,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.zig == 'master' }}
+    continue-on-error: ${{ matrix.zig == 'master' || matrix.toolchain == 'nightly' }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
