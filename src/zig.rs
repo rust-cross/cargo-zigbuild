@@ -360,11 +360,24 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     writeln!(
         &mut custom_linker_file,
         "{} zig {} -- {} %*",
-        current_exe, command, args
+        adjust_canonicalization(current_exe),
+        command,
+        args
     )?;
     Ok(())
 }
 
 pub(crate) fn is_mingw_shell() -> bool {
     env::var_os("MSYSTEM").is_some() && env::var_os("SHELL").is_some()
+}
+
+// https://stackoverflow.com/a/50323079/3549270
+#[cfg(target_os = "windows")]
+pub fn adjust_canonicalization(p: String) -> String {
+    const VERBATIM_PREFIX: &str = r#"\\?\"#;
+    if p.starts_with(VERBATIM_PREFIX) {
+        p[VERBATIM_PREFIX.len()..].to_string()
+    } else {
+        p
+    }
 }
