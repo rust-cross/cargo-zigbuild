@@ -94,7 +94,7 @@ pub struct Rustc {
         env = "CARGO_BUILD_TARGET",
         multiple_occurrences = true
     )]
-    pub target: Option<Vec<String>>,
+    pub target: Vec<String>,
 
     /// Output compiler information without compiling
     #[clap(long, value_name = "INFO")]
