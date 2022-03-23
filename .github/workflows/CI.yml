@@ -77,6 +77,20 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
+      - name: macOS - Test build
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo run zigbuild --target aarch64-apple-darwin
+          cargo run zigbuild --target aarch64-apple-darwin --release
+      - name: macOS - Test build with SDKROOT
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          SDK: MacOSX11.3.sdk
+        run: |
+          curl -sqL https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/$SDK.tar.xz | tar -Jx
+          export SDKROOT=$PWD/$SDK
+
+          cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-tls/Cargo.toml
       - name: Linux - Test x86_64 build
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -111,11 +125,6 @@ jobs:
           rustup target add aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
-      - name: macOS - Test build
-        run: |
-          rustup target add aarch64-apple-darwin
-          cargo run zigbuild --target aarch64-apple-darwin
-          cargo run zigbuild --target aarch64-apple-darwin --release
       - name: Windows - Test gnu build
         run: |
           rustup target add x86_64-pc-windows-gnu

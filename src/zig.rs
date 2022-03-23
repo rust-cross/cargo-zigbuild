@@ -53,6 +53,7 @@ impl Zig {
             .map(|x| x.contains("windows-gnu"))
             .unwrap_or_default();
         let is_arm = target.map(|x| x.contains("arm")).unwrap_or_default();
+        let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
 
@@ -126,6 +127,17 @@ impl Zig {
         }
         if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
+        }
+
+        if is_macos {
+            if let Ok(sdkroot) = env::var("SDKROOT") {
+                new_cmd_args.extend_from_slice(&[
+                    format!("--sysroot={}", sdkroot),
+                    "-I/usr/include".to_string(),
+                    "-L/usr/lib".to_string(),
+                    "-F/System/Library/Frameworks".to_string(),
+                ]);
+            }
         }
 
         let mut child = Self::command()?
