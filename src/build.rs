@@ -105,7 +105,12 @@ pub struct Build {
     pub no_default_features: bool,
 
     /// Build for the target triple
-    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET", multiple_occurrences = true )]
+    #[clap(
+        long,
+        value_name = "TRIPLE",
+        env = "CARGO_BUILD_TARGET",
+        multiple_occurrences = true
+    )]
     pub target: Option<Vec<String>>,
 
     /// Directory for all generated artifacts
@@ -190,14 +195,11 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg(subcommand);
 
-        let rust_targets = self
-            .target
-            .as_ref()
-            .map(|targets| {
-                targets.into_iter().map(|target| {
-                    target.split_once('.').map(|(t, _)| t).unwrap_or(target)
-                })
-            });
+        let rust_targets = self.target.as_ref().map(|targets| {
+            targets
+                .into_iter()
+                .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
+        });
 
         // collect cargo build arguments
         if self.quiet {
@@ -265,8 +267,7 @@ impl Build {
         }
         if let Some(rust_targets) = rust_targets {
             rust_targets.for_each(|target| {
-                build.arg("--target")
-                    .arg(&target);
+                build.arg("--target").arg(&target);
             });
         }
         if let Some(dir) = self.target_dir.as_ref() {
@@ -337,13 +338,13 @@ impl Build {
                                 build.env("TARGET_CXX", &zig_cxx);
                                 build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
                             }
-    
+
                             self.setup_os_deps()?;
-    
+
                             if rust_target.contains("windows-gnu") {
                                 build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
                             }
-    
+
                             // Enable unstable `target-applies-to-host` option automatically for nightly Rust
                             // when target is the same as host but may have specified glibc version
                             if host_target == rust_target
@@ -355,7 +356,6 @@ impl Build {
                         }
                     }
                 }
-
             }
         }
         Ok(build)
@@ -407,7 +407,6 @@ impl Build {
                     }
                 }
             }
-
         }
         Ok(())
     }
