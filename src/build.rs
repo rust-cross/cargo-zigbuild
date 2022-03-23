@@ -105,8 +105,8 @@ pub struct Build {
     pub no_default_features: bool,
 
     /// Build for the target triple
-    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET")]
-    pub target: Option<String>,
+    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET", multiple_occurrences = true )]
+    pub target: Option<Vec<String>>,
 
     /// Directory for all generated artifacts
     #[clap(long, value_name = "DIRECTORY", parse(from_os_str))]
@@ -190,10 +190,14 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg(subcommand);
 
-        let rust_target = self
+        let rust_targets = self
             .target
             .as_ref()
-            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target));
+            .map(|targets| {
+                targets.into_iter().map(|target| {
+                    target.split_once('.').map(|(t, _)| t).unwrap_or(target)
+                })
+            });
 
         // collect cargo build arguments
         if self.quiet {
@@ -259,8 +263,11 @@ impl Build {
         if self.no_default_features {
             build.arg("--no-default-features");
         }
-        if let Some(rust_target) = rust_target {
-            build.arg("--target").arg(&rust_target);
+        if let Some(rust_targets) = rust_targets {
+            rust_targets.for_each(|target| {
+                build.arg("--target")
+                    .arg(&target);
+            });
         }
         if let Some(dir) = self.target_dir.as_ref() {
             build.arg("--target-dir").arg(dir);
@@ -310,90 +317,97 @@ impl Build {
 
         if !self.disable_zig_linker {
             // setup zig as linker
-            if let Some(target) = self.target.as_ref() {
+            if let Some(targets) = self.target.as_ref() {
                 let rustc_meta = rustc_version::version_meta()?;
                 let host_target = &rustc_meta.host;
                 // we only setup zig as linker when target isn't exactly the same as host target
-                if host_target != target {
-                    if let Some(rust_target) = rust_target {
-                        let env_target = rust_target.to_uppercase().replace('-', "_");
-                        let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
-                        if is_mingw_shell() {
-                            let zig_cc = zig_cc.to_slash_lossy();
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx.to_slash_lossy());
-                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
-                        } else {
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx);
-                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
-                        }
 
-                        self.setup_os_deps()?;
-
-                        if rust_target.contains("windows-gnu") {
-                            build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
-                        }
-
-                        // Enable unstable `target-applies-to-host` option automatically for nightly Rust
-                        // when target is the same as host but may have specified glibc version
-                        if host_target == rust_target
-                            && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
-                        {
-                            build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
-                            build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
+                for (i, full_target) in targets.iter().enumerate() {
+                    if host_target != full_target {
+                        if let Some(rust_target) = targets.get(i) {
+                            let env_target = rust_target.to_uppercase().replace('-', "_");
+                            let (zig_cc, zig_cxx) = prepare_zig_linker(full_target)?;
+                            if is_mingw_shell() {
+                                let zig_cc = zig_cc.to_slash_lossy();
+                                build.env("TARGET_CC", &zig_cc);
+                                build.env("TARGET_CXX", &zig_cxx.to_slash_lossy());
+                                build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+                            } else {
+                                build.env("TARGET_CC", &zig_cc);
+                                build.env("TARGET_CXX", &zig_cxx);
+                                build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
+                            }
+    
+                            self.setup_os_deps()?;
+    
+                            if rust_target.contains("windows-gnu") {
+                                build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                            }
+    
+                            // Enable unstable `target-applies-to-host` option automatically for nightly Rust
+                            // when target is the same as host but may have specified glibc version
+                            if host_target == rust_target
+                                && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
+                            {
+                                build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
+                                build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
+                            }
                         }
                     }
                 }
+
             }
         }
         Ok(build)
     }
 
     fn setup_os_deps(&self) -> Result<()> {
-        if let Some(target) = self.target.as_ref() {
-            if target.contains("apple") {
-                let target_dir = if let Some(target_dir) = self.target_dir.clone() {
-                    target_dir.join(target)
-                } else {
-                    let manifest_path = self
-                        .manifest_path
-                        .as_deref()
-                        .unwrap_or_else(|| Path::new("Cargo.toml"));
-                    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-                    metadata_cmd.manifest_path(&manifest_path);
-                    let metadata = metadata_cmd.exec()?;
-                    metadata.target_directory.into_std_path_buf().join(target)
-                };
-                let profile = match self.profile.as_deref() {
-                    Some("dev" | "test") => "debug",
-                    Some("release" | "bench") => "release",
-                    Some(profile) => profile,
-                    None => {
-                        if self.release {
-                            "release"
-                        } else {
-                            "debug"
+        if let Some(full_targets) = self.target.as_ref() {
+            for target in full_targets.into_iter() {
+                if target.contains("apple") {
+                    let target_dir = if let Some(target_dir) = self.target_dir.clone() {
+                        target_dir.join(target)
+                    } else {
+                        let manifest_path = self
+                            .manifest_path
+                            .as_deref()
+                            .unwrap_or_else(|| Path::new("Cargo.toml"));
+                        let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+                        metadata_cmd.manifest_path(&manifest_path);
+                        let metadata = metadata_cmd.exec()?;
+                        metadata.target_directory.into_std_path_buf().join(target)
+                    };
+                    let profile = match self.profile.as_deref() {
+                        Some("dev" | "test") => "debug",
+                        Some("release" | "bench") => "release",
+                        Some(profile) => profile,
+                        None => {
+                            if self.release {
+                                "release"
+                            } else {
+                                "debug"
+                            }
                         }
-                    }
-                };
-                let deps_dir = target_dir.join(profile).join("deps");
-                fs::create_dir_all(&deps_dir)?;
-                fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
-            } else if target.contains("arm") && target.contains("linux") {
-                // See https://github.com/ziglang/zig/issues/3287
-                if let Ok(lib_dir) = Zig::lib_dir() {
-                    let arm_features_h = lib_dir
-                        .join("libc")
-                        .join("glibc")
-                        .join("sysdeps")
-                        .join("arm")
-                        .join("arm-features.h");
-                    if !arm_features_h.is_file() {
-                        fs::write(arm_features_h, ARM_FEATURES_H)?;
+                    };
+                    let deps_dir = target_dir.join(profile).join("deps");
+                    fs::create_dir_all(&deps_dir)?;
+                    fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
+                } else if target.contains("arm") && target.contains("linux") {
+                    // See https://github.com/ziglang/zig/issues/3287
+                    if let Ok(lib_dir) = Zig::lib_dir() {
+                        let arm_features_h = lib_dir
+                            .join("libc")
+                            .join("glibc")
+                            .join("sysdeps")
+                            .join("arm")
+                            .join("arm-features.h");
+                        if !arm_features_h.is_file() {
+                            fs::write(arm_features_h, ARM_FEATURES_H)?;
+                        }
                     }
                 }
             }
+
         }
         Ok(())
     }
