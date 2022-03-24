@@ -99,6 +99,15 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain == 'nightly' }}
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu.2.17
+      - name: Linux - Test x86_64 glibc run
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain == 'nightly' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: centos:7
+          options: -v ${{ github.workspace }}:/io -w /io
+          run: |
+            ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
+            ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild
       - name: Linux - Test glibc build
         run: |
           rustup target add aarch64-unknown-linux-gnu
