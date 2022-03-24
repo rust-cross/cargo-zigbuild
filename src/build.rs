@@ -357,7 +357,6 @@ impl Build {
                         build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
                     }
                 }
-                
             }
         }
 
