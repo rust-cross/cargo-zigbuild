@@ -106,8 +106,8 @@ jobs:
           image: centos:7
           options: -v ${{ github.workspace }}:/io -w /io
           run: |
-            ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
             ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild
+            ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
       - name: Linux - Test glibc build
         run: |
           rustup target add aarch64-unknown-linux-gnu
