@@ -88,8 +88,13 @@ pub struct Rustc {
     pub no_default_features: bool,
 
     /// Build for the target triple
-    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET")]
-    pub target: Option<String>,
+    #[clap(
+        long,
+        value_name = "TRIPLE",
+        env = "CARGO_BUILD_TARGET",
+        multiple_occurrences = true
+    )]
+    pub target: Vec<String>,
 
     /// Output compiler information without compiling
     #[clap(long, value_name = "INFO")]

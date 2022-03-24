@@ -105,8 +105,13 @@ pub struct Build {
     pub no_default_features: bool,
 
     /// Build for the target triple
-    #[clap(long, value_name = "TRIPLE", env = "CARGO_BUILD_TARGET")]
-    pub target: Option<String>,
+    #[clap(
+        long,
+        value_name = "TRIPLE",
+        env = "CARGO_BUILD_TARGET",
+        multiple_occurrences = true
+    )]
+    pub target: Vec<String>,
 
     /// Directory for all generated artifacts
     #[clap(long, value_name = "DIRECTORY", parse(from_os_str))]
@@ -190,10 +195,11 @@ impl Build {
         let mut build = Command::new("cargo");
         build.arg(subcommand);
 
-        let rust_target = self
+        let rust_targets = self
             .target
-            .as_ref()
-            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target));
+            .iter()
+            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
+            .collect::<Vec<&str>>();
 
         // collect cargo build arguments
         if self.quiet {
@@ -259,9 +265,11 @@ impl Build {
         if self.no_default_features {
             build.arg("--no-default-features");
         }
-        if let Some(rust_target) = rust_target {
-            build.arg("--target").arg(&rust_target);
-        }
+
+        rust_targets.iter().for_each(|target| {
+            build.arg("--target").arg(&target);
+        });
+
         if let Some(dir) = self.target_dir.as_ref() {
             build.arg("--target-dir").arg(dir);
         }
@@ -310,48 +318,53 @@ impl Build {
 
         if !self.disable_zig_linker {
             // setup zig as linker
-            if let Some(target) = self.target.as_ref() {
-                let rustc_meta = rustc_version::version_meta()?;
-                let host_target = &rustc_meta.host;
+            let rustc_meta = rustc_version::version_meta()?;
+            let host_target = &rustc_meta.host;
+            for (parsed_target, raw_target) in rust_targets.iter().zip(&self.target) {
                 // we only setup zig as linker when target isn't exactly the same as host target
-                if host_target != target {
-                    if let Some(rust_target) = rust_target {
-                        let env_target = rust_target.to_uppercase().replace('-', "_");
-                        let (zig_cc, zig_cxx) = prepare_zig_linker(target)?;
-                        if is_mingw_shell() {
-                            let zig_cc = zig_cc.to_slash_lossy();
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx.to_slash_lossy());
-                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
-                        } else {
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx);
-                            build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
-                        }
+                if host_target != raw_target {
+                    let env_target = parsed_target.replace('-', "_");
+                    let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
+                    if is_mingw_shell() {
+                        let zig_cc = zig_cc.to_slash_lossy();
+                        build.env(format!("CC_{}", env_target), &zig_cc);
+                        build.env(format!("CXX_{}", env_target), &zig_cxx.to_slash_lossy());
+                        build.env(
+                            format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                            &zig_cc,
+                        );
+                    } else {
+                        build.env(format!("CC_{}", env_target), &zig_cc);
+                        build.env(format!("CXX_{}", env_target), &zig_cxx);
+                        build.env(
+                            format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                            &zig_cc,
+                        );
+                    }
 
-                        self.setup_os_deps()?;
+                    self.setup_os_deps()?;
 
-                        if rust_target.contains("windows-gnu") {
-                            build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
-                        }
+                    if raw_target.contains("windows-gnu") {
+                        build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                    }
 
-                        // Enable unstable `target-applies-to-host` option automatically for nightly Rust
-                        // when target is the same as host but may have specified glibc version
-                        if host_target == rust_target
-                            && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
-                        {
-                            build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
-                            build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
-                        }
+                    // Enable unstable `target-applies-to-host` option automatically for nightly Rust
+                    // when target is the same as host but may have specified glibc version
+                    if host_target == raw_target
+                        && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
+                    {
+                        build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
+                        build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
                     }
                 }
             }
         }
+
         Ok(build)
     }
 
     fn setup_os_deps(&self) -> Result<()> {
-        if let Some(target) = self.target.as_ref() {
+        for target in &self.target {
             if target.contains("apple") {
                 let target_dir = if let Some(target_dir) = self.target_dir.clone() {
                     target_dir.join(target)
