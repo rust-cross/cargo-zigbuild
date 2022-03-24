@@ -198,9 +198,7 @@ impl Build {
         let rust_targets = self
             .target
             .iter()
-            .map(|target| {
-                target.split_once('.').map(|(t, _)| t).unwrap_or(&target)
-            })
+            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(&target))
             .collect::<Vec<&str>>();
 
         // collect cargo build arguments
@@ -326,7 +324,7 @@ impl Build {
                 // we only setup zig as linker when target isn't exactly the same as host target
                 if host_target != full_target {
                     if let Some(rust_target) = rust_targets.get(i) {
-                        let env_target = rust_target.to_uppercase().replace('-', "_");
+                        let env_target = rust_target.replace('-', "_");
                         let (zig_cc, zig_cxx) = prepare_zig_linker(full_target)?;
                         if is_mingw_shell() {
                             let zig_cc = zig_cc.to_slash_lossy();
@@ -357,6 +355,7 @@ impl Build {
                 }
             }
         }
+
         Ok(build)
     }
 
