@@ -198,7 +198,10 @@ impl Build {
         let rust_targets = self
             .target
             .iter()
-            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(&target));
+            .map(|target| {
+                target.split_once('.').map(|(t, _)| t).unwrap_or(&target)
+            })
+            .collect::<Vec<&str>>();
 
         // collect cargo build arguments
         if self.quiet {
@@ -265,7 +268,7 @@ impl Build {
             build.arg("--no-default-features");
         }
 
-        rust_targets.for_each(|target| {
+        rust_targets.iter().for_each(|target| {
             build.arg("--target").arg(&target);
         });
 
@@ -319,21 +322,20 @@ impl Build {
             // setup zig as linker
             let rustc_meta = rustc_version::version_meta()?;
             let host_target = &rustc_meta.host;
-            // we only setup zig as linker when target isn't exactly the same as host target
-
-            for (i, full_target) in self.target.iter().enumerate() {
+            for (i, full_target) in rust_targets.iter().enumerate() {
+                // we only setup zig as linker when target isn't exactly the same as host target
                 if host_target != full_target {
-                    if let Some(rust_target) = self.target.get(i) {
+                    if let Some(rust_target) = rust_targets.get(i) {
                         let env_target = rust_target.to_uppercase().replace('-', "_");
                         let (zig_cc, zig_cxx) = prepare_zig_linker(full_target)?;
                         if is_mingw_shell() {
                             let zig_cc = zig_cc.to_slash_lossy();
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx.to_slash_lossy());
+                            build.env(format!("CC_{}", env_target), &zig_cc);
+                            build.env(format!("CXX_{}", env_target), &zig_cxx.to_slash_lossy());
                             build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
                         } else {
-                            build.env("TARGET_CC", &zig_cc);
-                            build.env("TARGET_CXX", &zig_cxx);
+                            build.env(format!("CC_{}", env_target), &zig_cc);
+                            build.env(format!("CXX_{}", env_target), &zig_cxx);
                             build.env(format!("CARGO_TARGET_{}_LINKER", env_target), &zig_cc);
                         }
 
