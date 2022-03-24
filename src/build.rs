@@ -325,7 +325,7 @@ impl Build {
                     // we only setup zig as linker when target isn't exactly the same as host target
                     if host_target != raw_target {
                         let env_target = parsed_target.replace('-', "_");
-                        let (zig_cc, zig_cxx) = prepare_zig_linker(parsed_target)?;
+                        let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
                         if is_mingw_shell() {
                             let zig_cc = zig_cc.to_slash_lossy();
                             build.env(format!("CC_{}", env_target), &zig_cc);
