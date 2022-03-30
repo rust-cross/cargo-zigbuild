@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{self, Command};
 
 use anyhow::{Context, Result};
@@ -15,163 +15,8 @@ use crate::zig::{is_mingw_shell, prepare_zig_linker, Zig};
 #[derive(Clone, Debug, Default, Parser)]
 #[clap(setting = clap::AppSettings::DeriveDisplayOrder, after_help = "Run `cargo help build` for more detailed information.")]
 pub struct Build {
-    /// Do not print cargo log messages
-    #[clap(short = 'q', long)]
-    pub quiet: bool,
-
-    /// Package to build (see `cargo help pkgid`)
-    #[clap(
-        short = 'p',
-        long = "package",
-        value_name = "SPEC",
-        multiple_values = true
-    )]
-    pub packages: Vec<String>,
-
-    /// Build all packages in the workspace
-    #[clap(long)]
-    pub workspace: bool,
-
-    /// Exclude packages from the build
-    #[clap(long, value_name = "SPEC", multiple_values = true)]
-    pub exclude: Vec<String>,
-
-    /// Alias for workspace (deprecated)
-    #[clap(long)]
-    pub all: bool,
-
-    /// Number of parallel jobs, defaults to # of CPUs
-    #[clap(short = 'j', long, value_name = "N")]
-    pub jobs: Option<usize>,
-
-    /// Build only this package's library
-    #[clap(long)]
-    pub lib: bool,
-
-    /// Build only the specified binary
-    #[clap(long, value_name = "NAME", multiple_values = true)]
-    pub bin: Vec<String>,
-
-    /// Build all binaries
-    #[clap(long)]
-    pub bins: bool,
-
-    /// Build only the specified example
-    #[clap(long, value_name = "NAME", multiple_values = true)]
-    pub example: Vec<String>,
-
-    /// Build all examples
-    #[clap(long)]
-    pub examples: bool,
-
-    /// Build only the specified test target
-    #[clap(long, value_name = "NAME", multiple_values = true)]
-    pub test: Vec<String>,
-
-    /// Build all tests
-    #[clap(long)]
-    pub tests: bool,
-
-    /// Build only the specified bench target
-    #[clap(long, value_name = "NAME", multiple_values = true)]
-    pub bench: Vec<String>,
-
-    /// Build all benches
-    #[clap(long)]
-    pub benches: bool,
-
-    /// Build all targets
-    #[clap(long)]
-    pub all_targets: bool,
-
-    /// Build artifacts in release mode, with optimizations
-    #[clap(short = 'r', long)]
-    pub release: bool,
-
-    /// Build artifacts with the specified Cargo profile
-    #[clap(long, value_name = "PROFILE-NAME")]
-    pub profile: Option<String>,
-
-    /// Space or comma separated list of features to activate
-    #[clap(long, multiple_values = true)]
-    pub features: Vec<String>,
-
-    /// Activate all available features
-    #[clap(long)]
-    pub all_features: bool,
-
-    /// Do not activate the `default` feature
-    #[clap(long)]
-    pub no_default_features: bool,
-
-    /// Build for the target triple
-    #[clap(
-        long,
-        value_name = "TRIPLE",
-        env = "CARGO_BUILD_TARGET",
-        multiple_occurrences = true
-    )]
-    pub target: Vec<String>,
-
-    /// Directory for all generated artifacts
-    #[clap(long, value_name = "DIRECTORY", parse(from_os_str))]
-    pub target_dir: Option<PathBuf>,
-
-    /// Copy final artifacts to this directory (unstable)
-    #[clap(long, value_name = "PATH", parse(from_os_str))]
-    pub out_dir: Option<PathBuf>,
-
-    /// Path to Cargo.toml
-    #[clap(long, value_name = "PATH", parse(from_os_str))]
-    pub manifest_path: Option<PathBuf>,
-
-    /// Ignore `rust-version` specification in packages
-    #[clap(long)]
-    pub ignore_rust_version: bool,
-
-    /// Error format
-    #[clap(long, value_name = "FMT", multiple_values = true)]
-    pub message_format: Vec<String>,
-
-    /// Output the build plan in JSON (unstable)
-    #[clap(long)]
-    pub build_plan: bool,
-
-    /// Output build graph in JSON (unstable)
-    #[clap(long)]
-    pub unit_graph: bool,
-
-    /// Outputs a future incompatibility report at the end of the build (unstable)
-    #[clap(long)]
-    pub future_incompat_report: bool,
-
-    /// Use verbose output (-vv very verbose/build.rs output)
-    #[clap(short = 'v', long, parse(from_occurrences), max_occurrences = 2)]
-    pub verbose: usize,
-
-    /// Coloring: auto, always, never
-    #[clap(long, value_name = "WHEN")]
-    pub color: Option<String>,
-
-    /// Require Cargo.lock and cache are up to date
-    #[clap(long)]
-    pub frozen: bool,
-
-    /// Require Cargo.lock is up to date
-    #[clap(long)]
-    pub locked: bool,
-
-    /// Run without accessing the network
-    #[clap(long)]
-    pub offline: bool,
-
-    /// Override a configuration value (unstable)
-    #[clap(long, value_name = "KEY=VALUE", multiple_values = true)]
-    pub config: Vec<String>,
-
-    /// Unstable (nightly-only) flags to Cargo, see 'cargo -Z help' for details
-    #[clap(short = 'Z', value_name = "FLAG", multiple_values = true)]
-    pub unstable_flags: Vec<String>,
+    #[clap(flatten)]
+    pub cargo: cargo_options::Build,
 
     /// Disable zig linker
     #[clap(skip)]
@@ -196,73 +41,74 @@ impl Build {
         build.arg(subcommand);
 
         let rust_targets = self
+            .cargo
             .target
             .iter()
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
             .collect::<Vec<&str>>();
 
         // collect cargo build arguments
-        if self.quiet {
+        if self.cargo.quiet {
             build.arg("--quiet");
         }
-        for pkg in &self.packages {
+        for pkg in &self.cargo.packages {
             build.arg("--package").arg(pkg);
         }
-        if self.workspace {
+        if self.cargo.workspace {
             build.arg("--workspace");
         }
-        for item in &self.exclude {
+        for item in &self.cargo.exclude {
             build.arg("--exclude").arg(item);
         }
-        if self.all {
+        if self.cargo.all {
             build.arg("--all");
         }
-        if let Some(jobs) = self.jobs {
+        if let Some(jobs) = self.cargo.jobs {
             build.arg("--jobs").arg(jobs.to_string());
         }
-        if self.lib {
+        if self.cargo.lib {
             build.arg("--lib");
         }
-        for bin in &self.bin {
+        for bin in &self.cargo.bin {
             build.arg("--bin").arg(bin);
         }
-        if self.bins {
+        if self.cargo.bins {
             build.arg("--bins");
         }
-        for example in &self.example {
+        for example in &self.cargo.example {
             build.arg("--example").arg(example);
         }
-        if self.examples {
+        if self.cargo.examples {
             build.arg("--examples");
         }
-        for test in &self.test {
+        for test in &self.cargo.test {
             build.arg("--test").arg(test);
         }
-        if self.tests {
+        if self.cargo.tests {
             build.arg("--tests");
         }
-        for bench in &self.bench {
+        for bench in &self.cargo.bench {
             build.arg("--bench").arg(bench);
         }
-        if self.benches {
+        if self.cargo.benches {
             build.arg("--benches");
         }
-        if self.all_targets {
+        if self.cargo.all_targets {
             build.arg("--all-targets");
         }
-        if self.release {
+        if self.cargo.release {
             build.arg("--release");
         }
-        if let Some(profile) = self.profile.as_ref() {
+        if let Some(profile) = self.cargo.profile.as_ref() {
             build.arg("--profile").arg(profile);
         }
-        for feature in &self.features {
+        for feature in &self.cargo.features {
             build.arg("--features").arg(feature);
         }
-        if self.all_features {
+        if self.cargo.all_features {
             build.arg("--all-features");
         }
-        if self.no_default_features {
+        if self.cargo.no_default_features {
             build.arg("--no-default-features");
         }
 
@@ -270,49 +116,49 @@ impl Build {
             build.arg("--target").arg(&target);
         });
 
-        if let Some(dir) = self.target_dir.as_ref() {
+        if let Some(dir) = self.cargo.target_dir.as_ref() {
             build.arg("--target-dir").arg(dir);
         }
-        if let Some(dir) = self.out_dir.as_ref() {
+        if let Some(dir) = self.cargo.out_dir.as_ref() {
             build.arg("--out-dir").arg(dir);
         }
-        if let Some(path) = self.manifest_path.as_ref() {
+        if let Some(path) = self.cargo.manifest_path.as_ref() {
             build.arg("--manifest-path").arg(path);
         }
-        if self.ignore_rust_version {
+        if self.cargo.ignore_rust_version {
             build.arg("--ignore-rust-version");
         }
-        for fmt in &self.message_format {
+        for fmt in &self.cargo.message_format {
             build.arg("--message-format").arg(fmt);
         }
-        if self.build_plan {
+        if self.cargo.build_plan {
             build.arg("--build-plan");
         }
-        if self.unit_graph {
+        if self.cargo.unit_graph {
             build.arg("--unit-graph");
         }
-        if self.future_incompat_report {
+        if self.cargo.future_incompat_report {
             build.arg("--future-incompat-report");
         }
-        if self.verbose > 0 {
-            build.arg(format!("-{}", "v".repeat(self.verbose)));
+        if self.cargo.verbose > 0 {
+            build.arg(format!("-{}", "v".repeat(self.cargo.verbose)));
         }
-        if let Some(color) = self.color.as_ref() {
+        if let Some(color) = self.cargo.color.as_ref() {
             build.arg("--color").arg(color);
         }
-        if self.frozen {
+        if self.cargo.frozen {
             build.arg("--frozen");
         }
-        if self.locked {
+        if self.cargo.locked {
             build.arg("--locked");
         }
-        if self.offline {
+        if self.cargo.offline {
             build.arg("--offline");
         }
-        for config in &self.config {
+        for config in &self.cargo.config {
             build.arg("--config").arg(config);
         }
-        for flag in &self.unstable_flags {
+        for flag in &self.cargo.unstable_flags {
             build.arg("-Z").arg(flag);
         }
 
@@ -320,7 +166,7 @@ impl Build {
             // setup zig as linker
             let rustc_meta = rustc_version::version_meta()?;
             let host_target = &rustc_meta.host;
-            for (parsed_target, raw_target) in rust_targets.iter().zip(&self.target) {
+            for (parsed_target, raw_target) in rust_targets.iter().zip(&self.cargo.target) {
                 // we only setup zig as linker when target isn't exactly the same as host target
                 if host_target != raw_target {
                     let env_target = parsed_target.replace('-', "_");
@@ -364,12 +210,13 @@ impl Build {
     }
 
     fn setup_os_deps(&self) -> Result<()> {
-        for target in &self.target {
+        for target in &self.cargo.target {
             if target.contains("apple") {
-                let target_dir = if let Some(target_dir) = self.target_dir.clone() {
+                let target_dir = if let Some(target_dir) = self.cargo.target_dir.clone() {
                     target_dir.join(target)
                 } else {
                     let manifest_path = self
+                        .cargo
                         .manifest_path
                         .as_deref()
                         .unwrap_or_else(|| Path::new("Cargo.toml"));
@@ -378,12 +225,12 @@ impl Build {
                     let metadata = metadata_cmd.exec()?;
                     metadata.target_directory.into_std_path_buf().join(target)
                 };
-                let profile = match self.profile.as_deref() {
+                let profile = match self.cargo.profile.as_deref() {
                     Some("dev" | "test") => "debug",
                     Some("release" | "bench") => "release",
                     Some(profile) => profile,
                     None => {
-                        if self.release {
+                        if self.cargo.release {
                             "release"
                         } else {
                             "debug"

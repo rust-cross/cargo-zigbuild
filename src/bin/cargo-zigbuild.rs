@@ -6,7 +6,7 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 #[clap(
     version,
-    name = "cargo",
+    name = "cargo-zigbuild",
     global_setting(clap::AppSettings::DeriveDisplayOrder)
 )]
 pub enum Opt {
