@@ -169,7 +169,14 @@ impl Zig {
 
     /// Detect the plain zig binary
     fn find_zig_bin() -> Result<(String, Vec<String>)> {
-        let output = Command::new("zig").arg("version").output()?;
+        let output = if cfg!(target_os = "windows") {
+            Command::new("cmd.exe")
+                .args(&["/c", "zig", "version"])
+                .output()?
+        } else {
+            Command::new("zig").arg("version").output()?
+        };
+
         let version_str =
             str::from_utf8(&output.stdout).context("`zig version` didn't return utf8 output")?;
         Self::validate_zig_version(version_str)?;
@@ -178,9 +185,16 @@ impl Zig {
 
     /// Detect the Python ziglang package
     fn find_zig_python() -> Result<(String, Vec<String>)> {
-        let output = Command::new("python3")
-            .args(&["-m", "ziglang", "version"])
-            .output()?;
+        let output = if cfg!(target_os = "windows") {
+            Command::new("cmd.exe")
+                .args(&["/c", "python3", "-m", "ziglang", "version"])
+                .output()?
+        } else {
+            Command::new("python3")
+                .args(&["-m", "ziglang", "version"])
+                .output()?
+        };
+
         let version_str = str::from_utf8(&output.stdout)
             .context("`python3 -m ziglang version` didn't return utf8 output")?;
         Self::validate_zig_version(version_str)?;
