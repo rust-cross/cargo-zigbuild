@@ -155,7 +155,14 @@ impl Zig {
     /// Build the zig command line
     pub fn command() -> Result<Command> {
         let (zig, zig_args) = Self::find_zig()?;
-        let mut cmd = Command::new(zig);
+        let mut cmd = if cfg!(target_os = "windows") {
+            let mut cmd = Command::new("cmd.exe");
+            cmd.arg("/c");
+            cmd.arg(zig);
+            cmd
+        } else {
+            Command::new(zig)
+        };
         cmd.args(zig_args);
         Ok(cmd)
     }
