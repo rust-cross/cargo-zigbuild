@@ -176,39 +176,42 @@ impl Zig {
 
     /// Detect the plain zig binary
     fn find_zig_bin() -> Result<(String, Vec<String>)> {
+        let zig_path = zig_path();
         let output = if cfg!(target_os = "windows") {
             Command::new("cmd.exe")
-                .args(&["/c", "zig", "version"])
+                .args(&["/c", &zig_path, "version"])
                 .output()?
         } else {
-            Command::new("zig").arg("version").output()?
+            Command::new(&zig_path).arg("version").output()?
         };
 
-        let version_str =
-            str::from_utf8(&output.stdout).context("`zig version` didn't return utf8 output")?;
+        let version_str = str::from_utf8(&output.stdout)
+            .with_context(|| format!("`{} version` didn't return utf8 output", &zig_path))?;
         Self::validate_zig_version(version_str)?;
-        Ok(("zig".to_string(), Vec::new()))
+        Ok((zig_path, Vec::new()))
     }
 
     /// Detect the Python ziglang package
     fn find_zig_python() -> Result<(String, Vec<String>)> {
+        let python_path = python_path();
         let output = if cfg!(target_os = "windows") {
             Command::new("cmd.exe")
-                .args(&["/c", "python3", "-m", "ziglang", "version"])
+                .args(&["/c", &python_path, "-m", "ziglang", "version"])
                 .output()?
         } else {
-            Command::new("python3")
+            Command::new(&python_path)
                 .args(&["-m", "ziglang", "version"])
                 .output()?
         };
 
-        let version_str = str::from_utf8(&output.stdout)
-            .context("`python3 -m ziglang version` didn't return utf8 output")?;
+        let version_str = str::from_utf8(&output.stdout).with_context(|| {
+            format!(
+                "`{} -m ziglang version` didn't return utf8 output",
+                &python_path
+            )
+        })?;
         Self::validate_zig_version(version_str)?;
-        Ok((
-            "python3".to_string(),
-            vec!["-m".to_string(), "ziglang".to_string()],
-        ))
+        Ok((python_path, vec!["-m".to_string(), "ziglang".to_string()]))
     }
 
     fn validate_zig_version(version: &str) -> Result<()> {
@@ -413,4 +416,12 @@ pub fn adjust_canonicalization(p: String) -> String {
     } else {
         p
     }
+}
+
+fn python_path() -> String {
+    env::var("CARGO_ZIGBUILD_PYTHON_PATH").unwrap_or_else(|_| "python3".to_string())
+}
+
+fn zig_path() -> String {
+    env::var("CARGO_ZIGBUILD_ZIG_PATH").unwrap_or_else(|_| "zig".to_string())
 }
