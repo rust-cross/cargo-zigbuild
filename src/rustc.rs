@@ -63,3 +63,9 @@ impl DerefMut for Rustc {
         &mut self.cargo
     }
 }
+
+impl From<cargo_options::Rustc> for Rustc {
+    fn from(cargo: cargo_options::Rustc) -> Self {
+        Self { cargo }
+    }
+}

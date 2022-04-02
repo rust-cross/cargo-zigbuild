@@ -273,3 +273,12 @@ impl DerefMut for Build {
         &mut self.cargo
     }
 }
+
+impl From<cargo_options::Build> for Build {
+    fn from(cargo: cargo_options::Build) -> Self {
+        Self {
+            cargo,
+            disable_zig_linker: false,
+        }
+    }
+}
