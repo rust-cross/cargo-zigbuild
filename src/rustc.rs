@@ -1,3 +1,4 @@
+use std::ops::{Deref, DerefMut};
 use std::process;
 
 use anyhow::{Context, Result};
@@ -46,5 +47,19 @@ impl Rustc {
             process::exit(status.code().unwrap_or(1));
         }
         Ok(())
+    }
+}
+
+impl Deref for Rustc {
+    type Target = cargo_options::Rustc;
+
+    fn deref(&self) -> &Self::Target {
+        &self.cargo
+    }
+}
+
+impl DerefMut for Rustc {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.cargo
     }
 }

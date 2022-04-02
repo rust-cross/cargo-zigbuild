@@ -1,3 +1,4 @@
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::process::{self, Command};
 
@@ -256,5 +257,19 @@ impl Build {
             }
         }
         Ok(())
+    }
+}
+
+impl Deref for Build {
+    type Target = cargo_options::Build;
+
+    fn deref(&self) -> &Self::Target {
+        &self.cargo
+    }
+}
+
+impl DerefMut for Build {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.cargo
     }
 }
