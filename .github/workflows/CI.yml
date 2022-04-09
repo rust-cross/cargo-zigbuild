@@ -89,8 +89,10 @@ jobs:
         run: |
           curl -sqL https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/$SDK.tar.xz | tar -Jx
           export SDKROOT=$PWD/$SDK
+          export CFLAGS_aarch64_apple_darwin="-isysroot $SDKROOT"
 
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-tls/Cargo.toml
+          cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-rustls/Cargo.toml
       - name: Linux - Test x86_64 build
         if: matrix.os == 'ubuntu-latest'
         run: |
