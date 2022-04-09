@@ -1,3 +1,4 @@
+use std::env;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
@@ -201,6 +202,17 @@ impl Build {
 
                     if raw_target.contains("windows-gnu") {
                         build.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                    }
+
+                    if raw_target.contains("apple-darwin") {
+                        if let Some(sdkroot) = env::var_os("SDKROOT") {
+                            if !sdkroot.is_empty()
+                                && env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none()
+                            {
+                                // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
+                                build.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
+                            }
+                        }
                     }
 
                     // Enable unstable `target-applies-to-host` option automatically for nightly Rust
