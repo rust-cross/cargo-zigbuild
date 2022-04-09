@@ -130,13 +130,22 @@ impl Zig {
         }
 
         if is_macos {
-            if let Ok(sdkroot) = env::var("SDKROOT") {
-                new_cmd_args.extend_from_slice(&[
-                    format!("--sysroot={}", sdkroot),
-                    "-I/usr/include".to_string(),
-                    "-L/usr/lib".to_string(),
-                    "-F/System/Library/Frameworks".to_string(),
-                ]);
+            if let Some(sdkroot) = env::var_os("SDKROOT") {
+                if !sdkroot.is_empty() {
+                    let sdkroot = Path::new(&sdkroot);
+                    new_cmd_args.extend_from_slice(&[
+                        format!("-I{}", sdkroot.join("usr").join("include").display()),
+                        format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                        format!(
+                            "-F{}",
+                            sdkroot
+                                .join("System")
+                                .join("Library")
+                                .join("Frameworks")
+                                .display()
+                        ),
+                    ]);
+                }
             }
         }
 
