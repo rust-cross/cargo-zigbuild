@@ -171,6 +171,14 @@ impl Build {
         for flag in &self.cargo.unstable_flags {
             build.arg("-Z").arg(flag);
         }
+        if let Some(timings) = &self.cargo.timings {
+            if timings.is_empty() {
+                build.arg("--timings");
+            } else {
+                let timings: Vec<_> = timings.iter().map(|x| x.as_str()).collect();
+                build.arg(format!("--timings={}", timings.join(",")));
+            }
+        }
 
         if !self.disable_zig_linker {
             // setup zig as linker

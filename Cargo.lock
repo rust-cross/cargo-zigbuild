@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-options"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b1b3181382eb094f7eeff8390f0e482f2792ba80ed61530b5437cf721886557"
+checksum = "68dacdf12b405b432ddcb94aa5edef0766daf8cb781f484e56b518305afd45ba"
 dependencies = [
  "clap",
 ]
