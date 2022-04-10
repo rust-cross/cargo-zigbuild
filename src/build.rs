@@ -217,7 +217,7 @@ impl Build {
 
                     // Enable unstable `target-applies-to-host` option automatically for nightly Rust
                     // when target is the same as host but may have specified glibc version
-                    if host_target == raw_target
+                    if host_target == parsed_target
                         && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
                     {
                         build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
