@@ -27,4 +27,15 @@ RUN curl -L "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacO
 RUN curl -L "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.3.sdk.tar.xz" | tar -J -x -C /opt
 ENV SDKROOT=/opt/MacOSX11.3.sdk
 
+# Install Rust targets
+RUN rustup target add \
+    x86_64-unknown-linux-gnu \
+    x86_64-unknown-linux-musl \
+    aarch64-unknown-linux-gnu \
+    aarch64-unknown-linux-musl \
+    arm-unknown-linux-gnueabihf \
+    arm-unknown-linux-musleabihf \
+    x86_64-apple-darwin \
+    aarch64-apple-darwin
+
 COPY --from=builder /cargo-zigbuild/target/release/cargo-zigbuild /usr/local/cargo/bin/
