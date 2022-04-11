@@ -20,6 +20,13 @@ You can also install it using pip which will also install [`ziglang`](https://py
 pip install cargo-zigbuild
 ```
 
+We also provide a [Docker image](https://hub.docker.com/r/messense/cargo-zigbuild) which has macOS SDK pre-installed in addition to cargo-zigbuild and Rust,
+for example to build for x86_64 macOS:
+
+```bash
+docker run --rm -it -v $(pwd):/io -w /io messense/cargo-zigbuild:main cargo zigbuild --release --target x86_64-apple-darwin
+```
+
 ## Usage
 
 1. Install [zig](https://ziglang.org/) following the [official documentation](https://ziglang.org/learn/getting-started/#installing-zig),
