@@ -24,7 +24,8 @@ We also provide a [Docker image](https://hub.docker.com/r/messense/cargo-zigbuil
 for example to build for x86_64 macOS:
 
 ```bash
-docker run --rm -it -v $(pwd):/io -w /io messense/cargo-zigbuild:main cargo zigbuild --release --target x86_64-apple-darwin
+docker run --rm -it -v $(pwd):/io -w /io messense/cargo-zigbuild \
+  cargo zigbuild --release --target x86_64-apple-darwin
 ```
 
 ## Usage
