@@ -32,6 +32,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.zig == 'master' || matrix.toolchain == 'nightly' }}
     strategy:
+      # If one platform fails, allow the rest to keep testing if `CI-no-fail-fast` label is present
+      fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         toolchain: [1.54.0, stable, nightly]
