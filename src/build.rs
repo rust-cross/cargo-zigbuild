@@ -223,11 +223,14 @@ impl Build {
                         }
                     }
 
-                    // Enable unstable `target-applies-to-host` option automatically for nightly Rust
+                    // Enable unstable `target-applies-to-host` option automatically
                     // when target is the same as host but may have specified glibc version
-                    if host_target == parsed_target
-                        && matches!(rustc_meta.channel, rustc_version::Channel::Nightly)
-                    {
+                    if host_target == parsed_target {
+                        if !matches!(rustc_meta.channel, rustc_version::Channel::Nightly) {
+                            // Hack to use the unstable feature on stable Rust
+                            // https://github.com/rust-lang/cargo/pull/9753#issuecomment-1022919343
+                            build.env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
+                        }
                         build.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
                         build.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
                     }
