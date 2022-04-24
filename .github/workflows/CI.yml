@@ -97,11 +97,11 @@ jobs:
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu
       - name: Linux - Test x86_64 glibc build
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain == 'nightly' }}
+        if: ${{ matrix.os == 'ubuntu-latest' && (matrix.toolchain == 'stable' || matrix.toolchain == 'nightly') }}
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu.2.17
       - name: Linux - Test x86_64 glibc run
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain == 'nightly' }}
+        if: ${{ matrix.os == 'ubuntu-latest' && (matrix.toolchain == 'stable' || matrix.toolchain == 'nightly') }}
         uses: addnab/docker-run-action@v3
         with:
           image: centos:7
