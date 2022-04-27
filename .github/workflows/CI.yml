@@ -98,6 +98,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo run zigbuild --target x86_64-unknown-linux-gnu
+          ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild
       - name: Linux - Test x86_64 glibc build
         if: ${{ matrix.os == 'ubuntu-latest' && (matrix.toolchain == 'stable' || matrix.toolchain == 'nightly') }}
         run: |
