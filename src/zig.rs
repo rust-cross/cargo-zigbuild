@@ -109,7 +109,13 @@ impl Zig {
                 // rustc passes arguments to linker via an @-file when arguments are too long
                 // See https://github.com/rust-lang/rust/issues/41190
                 let content = fs::read(arg.trim_start_matches('@'))?;
-                let mut link_args: Vec<_> = str::from_utf8(&content)?
+                let mut link_args: Vec<_> = str::from_utf8(&content)
+                    .with_context(|| {
+                        format!(
+                            "linker response file `{}` didn't contain valid utf8 content:\n{:?}",
+                            &arg, &content
+                        )
+                    })?
                     .split('\n')
                     .filter_map(filter_link_arg)
                     .collect();
