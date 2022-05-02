@@ -143,7 +143,19 @@ impl Zig {
                 if has_undefined_dynamic_lookup(&link_args) {
                     link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
                 }
-                fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
+                if is_windows_msvc {
+                    let new_content = link_args.join("\n");
+                    let mut out = Vec::with_capacity((1 + new_content.len()) * 2);
+                    // start the stream with a UTF-16 BOM
+                    for c in std::iter::once(0xFEFF).chain(new_content.encode_utf16()) {
+                        // encode in little endian
+                        out.push(c as u8);
+                        out.push((c >> 8) as u8);
+                    }
+                    fs::write(arg.trim_start_matches('@'), out)?;
+                } else {
+                    fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
+                }
                 Some(arg.to_string())
             } else {
                 filter_link_arg(arg)
