@@ -52,6 +52,9 @@ impl Zig {
         let is_windows_gnu = target
             .map(|x| x.contains("windows-gnu"))
             .unwrap_or_default();
+        let is_windows_msvc = target
+            .map(|x| x.contains("windows-msvc"))
+            .unwrap_or_default();
         let is_arm = target.map(|x| x.contains("arm")).unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
@@ -108,17 +111,35 @@ impl Zig {
             let arg = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
                 // rustc passes arguments to linker via an @-file when arguments are too long
                 // See https://github.com/rust-lang/rust/issues/41190
-                let content = fs::read(arg.trim_start_matches('@'))?;
-                let mut link_args: Vec<_> = str::from_utf8(&content)
-                    .with_context(|| {
+                // and https://github.com/rust-lang/rust/blob/87937d3b6c302dfedfa5c4b94d0a30985d46298d/compiler/rustc_codegen_ssa/src/back/link.rs#L1373-L1382
+                let content_bytes = fs::read(arg.trim_start_matches('@'))?;
+                let content = if is_windows_msvc {
+                    if content_bytes[0..2] != [255, 254] {
+                        bail!(
+                            "linker response file `{}` didn't start with a utf16 BOM",
+                            &arg
+                        );
+                    }
+                    let content_utf16: Vec<u16> = content_bytes[2..]
+                        .chunks_exact(2)
+                        .map(|a| u16::from_ne_bytes([a[0], a[1]]))
+                        .collect();
+                    String::from_utf16(&content_utf16).with_context(|| {
                         format!(
-                            "linker response file `{}` didn't contain valid utf8 content:\n{:?}",
-                            &arg, &content
+                            "linker response file `{}` didn't contain valid utf16 content",
+                            &arg
                         )
                     })?
-                    .split('\n')
-                    .filter_map(filter_link_arg)
-                    .collect();
+                } else {
+                    String::from_utf8(content_bytes).with_context(|| {
+                        format!(
+                            "linker response file `{}` didn't contain valid utf8 content",
+                            &arg
+                        )
+                    })?
+                };
+                let mut link_args: Vec<_> =
+                    content.split('\n').filter_map(filter_link_arg).collect();
                 if has_undefined_dynamic_lookup(&link_args) {
                     link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
                 }
