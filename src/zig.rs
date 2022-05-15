@@ -188,7 +188,10 @@ impl Zig {
             }
         }
 
-        let mut child = Self::command()?
+        let mut zig = Self::command()?;
+        env::set_var("ZIG_COMMAND", format!("{:?}", zig));
+
+        let mut child = zig
             .arg(cmd)
             .args(new_cmd_args)
             .spawn()
