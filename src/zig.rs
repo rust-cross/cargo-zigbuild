@@ -215,6 +215,14 @@ impl Zig {
         Ok(cmd)
     }
 
+    fn zig_version() -> Result<semver::Version> {
+        let output = Self::command()?.arg("version").output()?;
+        let version_str =
+            str::from_utf8(&output.stdout).context("`zig version` didn't return utf8 output")?;
+        let version = semver::Version::parse(version_str.trim())?;
+        Ok(version)
+    }
+
     /// Search for `python -m ziglang` first and for `zig` second.
     pub fn find_zig() -> Result<(String, Vec<String>)> {
         Self::find_zig_python()
@@ -347,7 +355,14 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
             arch, target_env, abi_suffix, cc_args,
         ),
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
-            format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
+            let zig_version = Zig::zig_version()?;
+            // Zig 0.10.0 switched macOS ABI to none
+            // see https://github.com/ziglang/zig/pull/11684
+            if zig_version > semver::Version::new(0, 9, 1) {
+                format!("-target {}-macos-none{} {}", arch, abi_suffix, cc_args)
+            } else {
+                format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
+            }
         }
         OperatingSystem::Windows { .. } => format!(
             "-target {}-windows-{}{} {}",
@@ -416,7 +431,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     } else {
         env::current_exe()?
     };
-    writeln!(&mut custom_linker_file, "#!/usr/bin/env bash")?;
+    writeln!(&mut custom_linker_file, "#!/usr/bin/env sh")?;
     writeln!(
         &mut custom_linker_file,
         "{} zig {} -- {} $@",
