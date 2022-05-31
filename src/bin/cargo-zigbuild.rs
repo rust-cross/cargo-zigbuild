@@ -1,4 +1,6 @@
+use cargo_zigbuild::run::Run;
 use cargo_zigbuild::rustc::Rustc;
+use cargo_zigbuild::test::Test;
 use cargo_zigbuild::{Build, Zig};
 use clap::Parser;
 
@@ -14,6 +16,10 @@ pub enum Opt {
     Build(Build),
     #[clap(name = "rustc")]
     Rustc(Rustc),
+    #[clap(name = "run")]
+    Run(Run),
+    #[clap(name = "test")]
+    Test(Test),
     #[clap(subcommand)]
     Zig(Zig),
 }
@@ -23,6 +29,8 @@ fn main() -> anyhow::Result<()> {
     match opt {
         Opt::Build(build) => build.execute()?,
         Opt::Rustc(rustc) => rustc.execute()?,
+        Opt::Run(run) => run.execute()?,
+        Opt::Test(test) => test.execute()?,
         Opt::Zig(zig) => zig.execute()?,
     }
     Ok(())
