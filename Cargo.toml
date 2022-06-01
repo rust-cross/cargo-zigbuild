@@ -7,6 +7,7 @@ license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/messense/cargo-zigbuild"
+default-run = "cargo-zigbuild"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
