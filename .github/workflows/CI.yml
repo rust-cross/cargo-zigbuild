@@ -121,8 +121,20 @@ jobs:
           cargo run zigbuild --target arm-unknown-linux-gnueabihf
 
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
+
           # Test building shared library
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/libhello/Cargo.toml
+      - name: Linux - Test glibc run/test
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Install qemu for `cargo-zigbuild run` support
+          sudo apt-get update
+          sudo apt-get install -y qemu-user qemu-user-static gcc-aarch64-linux-gnu binfmt-support
+          sudo update-binfmts --enable qemu-aarch64
+          export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
+
+          cargo run run --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
+          cargo run test --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
       - name: Linux - Test glibc build openssl
         if: matrix.os != 'windows-latest'
         run: |

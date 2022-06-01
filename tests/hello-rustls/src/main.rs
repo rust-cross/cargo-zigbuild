@@ -10,3 +10,11 @@ async fn main() {
         .expect("send");
     println!("Response status {}", response.status());
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn it_works() {
+        assert_eq!(1, 1);
+    }
+}
