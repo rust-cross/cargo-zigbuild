@@ -2,6 +2,8 @@ ARG RUST_VERSION=1.60.0
 
 FROM rust:$RUST_VERSION as builder
 
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+
 # Compile dependencies only for build caching
 ADD Cargo.toml /cargo-zigbuild/Cargo.toml
 ADD Cargo.lock /cargo-zigbuild/Cargo.lock
