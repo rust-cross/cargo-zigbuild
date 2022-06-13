@@ -5,7 +5,7 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::build::Build;
+use crate::Zig;
 
 /// Compile a package, and pass extra options to the compiler
 /// with zig as the linker
@@ -31,24 +31,8 @@ impl Rustc {
 
     /// Execute `cargo rustc` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
-        let build = Build {
-            cargo: self.cargo.clone().into(),
-            ..Default::default()
-        };
-
-        let mut rustc = build.build_command("rustc")?;
-
-        if let Some(print) = self.cargo.print.as_ref() {
-            rustc.arg("--print").arg(print);
-        }
-        if !self.cargo.crate_type.is_empty() {
-            rustc
-                .arg("--crate-type")
-                .arg(self.cargo.crate_type.join(","));
-        }
-        if !self.cargo.args.is_empty() {
-            rustc.arg("--").args(&self.cargo.args);
-        }
+        let mut rustc = self.cargo.command();
+        Zig::apply_command_env(&self.cargo.common, &mut rustc)?;
 
         let mut child = rustc.spawn().context("Failed to run cargo rustc")?;
         let status = child.wait().expect("Failed to wait on cargo build process");

@@ -5,7 +5,7 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::Build;
+use crate::Zig;
 
 /// Run a binary or example of the local package
 #[derive(Clone, Debug, Default, Parser)]
@@ -30,15 +30,8 @@ impl Run {
 
     /// Execute `cargo run` command
     pub fn execute(&self) -> Result<()> {
-        let build = Build {
-            cargo: self.cargo.clone().into(),
-            ..Default::default()
-        };
-        let mut run = build.build_command("run")?;
-        if !self.cargo.args.is_empty() {
-            run.arg("--");
-            run.args(&self.cargo.args);
-        }
+        let mut run = self.cargo.command();
+        Zig::apply_command_env(&self.cargo.common, &mut run)?;
 
         let mut child = run.spawn().context("Failed to run cargo run")?;
         let status = child.wait().expect("Failed to wait on cargo run process");

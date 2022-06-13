@@ -12,7 +12,7 @@ repository = "https://github.com/messense/cargo-zigbuild"
 
 [dependencies]
 anyhow = "1.0.53"
-cargo-options = "0.1.4"
+cargo-options = "0.2.0"
 cargo_metadata = "0.14.2"
 clap = { version = "3.1.2", features = ["derive", "env", "wrap_help"] }
 dirs = "4.0.0"
