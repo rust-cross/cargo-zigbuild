@@ -16,6 +16,10 @@ use crate::Zig;
     after_help = "Run `cargo help rustc` for more detailed information."
 )]
 pub struct Rustc {
+    /// Disable zig linker
+    #[clap(skip)]
+    pub disable_zig_linker: bool,
+
     #[clap(flatten)]
     pub cargo: cargo_options::Rustc,
 }
@@ -32,7 +36,9 @@ impl Rustc {
     /// Execute `cargo rustc` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
         let mut rustc = self.cargo.command();
-        Zig::apply_command_env(&self.cargo.common, &mut rustc)?;
+        if !self.disable_zig_linker {
+            Zig::apply_command_env(&self.cargo.common, &mut rustc)?;
+        }
 
         let mut child = rustc.spawn().context("Failed to run cargo rustc")?;
         let status = child.wait().expect("Failed to wait on cargo build process");
@@ -59,6 +65,9 @@ impl DerefMut for Rustc {
 
 impl From<cargo_options::Rustc> for Rustc {
     fn from(cargo: cargo_options::Rustc) -> Self {
-        Self { cargo }
+        Self {
+            cargo,
+            ..Default::default()
+        }
     }
 }

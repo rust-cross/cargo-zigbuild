@@ -15,6 +15,10 @@ use crate::Zig;
     after_help = "Run `cargo help test` for more detailed information.\nRun `cargo test -- --help` for test binary options.")
 ]
 pub struct Test {
+    /// Disable zig linker
+    #[clap(skip)]
+    pub disable_zig_linker: bool,
+
     #[clap(flatten)]
     pub cargo: cargo_options::Test,
 }
@@ -31,7 +35,10 @@ impl Test {
     /// Execute `cargo test` command
     pub fn execute(&self) -> Result<()> {
         let mut test = self.cargo.command();
-        Zig::apply_command_env(&self.cargo.common, &mut test)?;
+
+        if !self.disable_zig_linker {
+            Zig::apply_command_env(&self.cargo.common, &mut test)?;
+        }
 
         let mut child = test.spawn().context("Failed to run cargo test")?;
         let status = child.wait().expect("Failed to wait on cargo test process");
