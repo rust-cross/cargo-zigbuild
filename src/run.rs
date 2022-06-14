@@ -5,7 +5,7 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::Build;
+use crate::Zig;
 
 /// Run a binary or example of the local package
 #[derive(Clone, Debug, Default, Parser)]
@@ -15,6 +15,10 @@ use crate::Build;
     after_help = "Run `cargo help run` for more detailed information.")
 ]
 pub struct Run {
+    /// Disable zig linker
+    #[clap(skip)]
+    pub disable_zig_linker: bool,
+
     #[clap(flatten)]
     pub cargo: cargo_options::Run,
 }
@@ -30,14 +34,10 @@ impl Run {
 
     /// Execute `cargo run` command
     pub fn execute(&self) -> Result<()> {
-        let build = Build {
-            cargo: self.cargo.clone().into(),
-            ..Default::default()
-        };
-        let mut run = build.build_command("run")?;
-        if !self.cargo.args.is_empty() {
-            run.arg("--");
-            run.args(&self.cargo.args);
+        let mut run = self.cargo.command();
+
+        if !self.disable_zig_linker {
+            Zig::apply_command_env(&self.cargo.common, &mut run)?;
         }
 
         let mut child = run.spawn().context("Failed to run cargo run")?;

@@ -5,7 +5,7 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::Build;
+use crate::Zig;
 
 /// Execute all unit and integration tests and build examples of a local package
 #[derive(Clone, Debug, Default, Parser)]
@@ -15,6 +15,10 @@ use crate::Build;
     after_help = "Run `cargo help test` for more detailed information.\nRun `cargo test -- --help` for test binary options.")
 ]
 pub struct Test {
+    /// Disable zig linker
+    #[clap(skip)]
+    pub disable_zig_linker: bool,
+
     #[clap(flatten)]
     pub cargo: cargo_options::Test,
 }
@@ -30,26 +34,10 @@ impl Test {
 
     /// Execute `cargo test` command
     pub fn execute(&self) -> Result<()> {
-        let build = Build {
-            cargo: self.cargo.clone().into(),
-            ..Default::default()
-        };
-        let mut test = build.build_command("test")?;
-        if self.cargo.doc {
-            test.arg("--doc");
-        }
-        if self.cargo.no_run {
-            test.arg("--no-run");
-        }
-        if self.cargo.no_fail_fast {
-            test.arg("--no-fail-fast");
-        }
-        if let Some(test_name) = self.cargo.test_name.as_ref() {
-            test.arg(test_name);
-        }
-        if !self.cargo.args.is_empty() {
-            test.arg("--");
-            test.args(&self.cargo.args);
+        let mut test = self.cargo.command();
+
+        if !self.disable_zig_linker {
+            Zig::apply_command_env(&self.cargo.common, &mut test)?;
         }
 
         let mut child = test.spawn().context("Failed to run cargo test")?;

@@ -10,12 +10,12 @@ use std::str;
 
 use anyhow::{bail, Context, Result};
 use fs_err as fs;
-#[cfg(not(target_family = "unix"))]
 use path_slash::PathBufExt;
 use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
-use crate::linux::{FCNTL_H, FCNTL_MAP};
+use crate::linux::{ARM_FEATURES_H, FCNTL_H, FCNTL_MAP};
+use crate::macos::LIBICONV_TBD;
 
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]
@@ -290,6 +290,116 @@ impl Zig {
         let output = Command::new(zig).args(zig_args).arg("env").output()?;
         let zig_env: ZigEnv = serde_json::from_slice(&output.stdout)?;
         Ok(PathBuf::from(zig_env.lib_dir))
+    }
+
+    pub(crate) fn apply_command_env(
+        cargo: &cargo_options::CommonOptions,
+        cmd: &mut Command,
+    ) -> Result<()> {
+        // setup zig as linker
+        let rust_targets = cargo
+            .target
+            .iter()
+            .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
+            .collect::<Vec<&str>>();
+        let rustc_meta = rustc_version::version_meta()?;
+        let host_target = &rustc_meta.host;
+        for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
+            let env_target = parsed_target.replace('-', "_");
+            let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
+            if is_mingw_shell() {
+                let zig_cc = zig_cc.to_slash_lossy();
+                cmd.env(format!("CC_{}", env_target), &zig_cc);
+                cmd.env(format!("CXX_{}", env_target), &zig_cxx.to_slash_lossy());
+                cmd.env(
+                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                    &zig_cc,
+                );
+            } else {
+                cmd.env(format!("CC_{}", env_target), &zig_cc);
+                cmd.env(format!("CXX_{}", env_target), &zig_cxx);
+                cmd.env(
+                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                    &zig_cc,
+                );
+            }
+
+            Self::setup_os_deps(cargo)?;
+
+            if raw_target.contains("windows-gnu") {
+                cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+            }
+
+            if raw_target.contains("apple-darwin") {
+                if let Some(sdkroot) = env::var_os("SDKROOT") {
+                    if !sdkroot.is_empty() && env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none() {
+                        // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
+                        cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
+                    }
+                }
+            }
+
+            // Enable unstable `target-applies-to-host` option automatically
+            // when target is the same as host but may have specified glibc version
+            if host_target == parsed_target {
+                if !matches!(rustc_meta.channel, rustc_version::Channel::Nightly) {
+                    // Hack to use the unstable feature on stable Rust
+                    // https://github.com/rust-lang/cargo/pull/9753#issuecomment-1022919343
+                    cmd.env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
+                }
+                cmd.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
+                cmd.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
+            }
+        }
+        Ok(())
+    }
+
+    fn setup_os_deps(cargo: &cargo_options::CommonOptions) -> Result<()> {
+        for target in &cargo.target {
+            if target.contains("apple") {
+                let target_dir = if let Some(target_dir) = cargo.target_dir.clone() {
+                    target_dir.join(target)
+                } else {
+                    let manifest_path = cargo
+                        .manifest_path
+                        .as_deref()
+                        .unwrap_or_else(|| Path::new("Cargo.toml"));
+                    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+                    metadata_cmd.manifest_path(&manifest_path);
+                    let metadata = metadata_cmd.exec()?;
+                    metadata.target_directory.into_std_path_buf().join(target)
+                };
+                let profile = match cargo.profile.as_deref() {
+                    Some("dev" | "test") => "debug",
+                    Some("release" | "bench") => "release",
+                    Some(profile) => profile,
+                    None => {
+                        if cargo.release {
+                            "release"
+                        } else {
+                            "debug"
+                        }
+                    }
+                };
+                let deps_dir = target_dir.join(profile).join("deps");
+                fs::create_dir_all(&deps_dir)?;
+                fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
+            } else if target.contains("arm") && target.contains("linux") {
+                // See https://github.com/ziglang/zig/issues/3287
+                if let Ok(lib_dir) = Zig::lib_dir() {
+                    let arm_features_h = lib_dir
+                        .join("libc")
+                        .join("glibc")
+                        .join("sysdeps")
+                        .join("arm")
+                        .join("arm-features.h");
+                    if !arm_features_h.is_file() {
+                        fs::write(arm_features_h, ARM_FEATURES_H)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
