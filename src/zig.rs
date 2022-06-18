@@ -445,7 +445,9 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         }
         format!(".{}", abi_suffix)
     };
-    let triple: Triple = rust_target.parse().unwrap();
+    let triple: Triple = rust_target
+        .parse()
+        .with_context(|| format!("Unsupported Rust target '{}'", rust_target))?;
     let arch = match triple.architecture {
         // zig target only has i386, no i586/i686
         Architecture::X86_32(..) => "i386".to_string(),
