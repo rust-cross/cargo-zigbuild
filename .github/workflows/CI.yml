@@ -36,11 +36,11 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        toolchain: [1.56.0, stable, nightly]
+        toolchain: [1.56.1, stable, nightly]
         zig: [0.9.1, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.56.0
+          - toolchain: 1.56.1
             zig: master
     steps:
       - uses: actions/checkout@v3
