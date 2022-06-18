@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use std::process;
+use std::process::{self, Command};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -35,10 +35,7 @@ impl Rustc {
 
     /// Execute `cargo rustc` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
-        let mut rustc = self.cargo.command();
-        if !self.disable_zig_linker {
-            Zig::apply_command_env(&self.cargo.common, &mut rustc)?;
-        }
+        let mut rustc = self.build_command()?;
 
         let mut child = rustc.spawn().context("Failed to run cargo rustc")?;
         let status = child.wait().expect("Failed to wait on cargo build process");
@@ -46,6 +43,16 @@ impl Rustc {
             process::exit(status.code().unwrap_or(1));
         }
         Ok(())
+    }
+
+    /// Generate cargo subcommand
+    pub fn build_command(&self) -> Result<Command> {
+        let mut build = self.cargo.command();
+        if !self.disable_zig_linker {
+            Zig::apply_command_env(&self.cargo.common, &mut build)?;
+        }
+
+        Ok(build)
     }
 }
 

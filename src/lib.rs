@@ -1,10 +1,13 @@
 mod build;
 pub mod linux;
 pub mod macos;
-pub mod run;
-pub mod rustc;
-pub mod test;
+mod run;
+mod rustc;
+mod test;
 pub mod zig;
 
 pub use build::Build;
+pub use run::Run;
+pub use rustc::Rustc;
+pub use test::Test;
 pub use zig::Zig;

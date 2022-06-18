@@ -1,7 +1,4 @@
-use cargo_zigbuild::run::Run;
-use cargo_zigbuild::rustc::Rustc;
-use cargo_zigbuild::test::Test;
-use cargo_zigbuild::{Build, Zig};
+use cargo_zigbuild::{Build, Run, Rustc, Test, Zig};
 use clap::Parser;
 
 #[allow(clippy::large_enum_variant)]
