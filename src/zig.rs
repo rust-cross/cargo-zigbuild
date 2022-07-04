@@ -458,8 +458,9 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         (_, environment) => environment,
     };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
-    let zig_cc = format!("zigcc-{}.{}", target, file_ext);
-    let zig_cxx = format!("zigcxx-{}.{}", target, file_ext);
+    let file_target = target.trim_end_matches('.');
+    let zig_cc = format!("zigcc-{}.{}", file_target, file_ext);
+    let zig_cxx = format!("zigcxx-{}.{}", file_target, file_ext);
     let cc_args = "-g"; // prevent stripping
     let mut cc_args = match triple.operating_system {
         OperatingSystem::Linux => format!(
