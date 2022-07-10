@@ -38,6 +38,7 @@ RUN rustup target add \
     arm-unknown-linux-gnueabihf \
     arm-unknown-linux-musleabihf \
     x86_64-apple-darwin \
-    aarch64-apple-darwin
+    aarch64-apple-darwin \
+    x86_64-pc-windows-gnu
 
 COPY --from=builder /cargo-zigbuild/target/release/cargo-zigbuild /usr/local/cargo/bin/
