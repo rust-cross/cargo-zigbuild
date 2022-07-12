@@ -9,13 +9,13 @@ use clap::Parser;
     global_setting(clap::AppSettings::DeriveDisplayOrder)
 )]
 pub enum Opt {
-    #[clap(name = "zigbuild", alias = "build")]
+    #[clap(name = "zigbuild", aliases = &["build", "b"] )]
     Build(Build),
     #[clap(name = "rustc")]
     Rustc(Rustc),
-    #[clap(name = "run")]
+    #[clap(name = "run", alias = "r")]
     Run(Run),
-    #[clap(name = "test")]
+    #[clap(name = "test", alias = "t")]
     Test(Test),
     #[clap(subcommand)]
     Zig(Zig),
