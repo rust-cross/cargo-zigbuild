@@ -9,7 +9,6 @@ ADD Cargo.toml /cargo-zigbuild/Cargo.toml
 ADD Cargo.lock /cargo-zigbuild/Cargo.lock
 RUN mkdir /cargo-zigbuild/src && \
     touch  /cargo-zigbuild/src/lib.rs && \
-    sed -i 's/default-run = .*//g' /cargo-zigbuild/Cargo.toml && \
     cargo build --manifest-path /cargo-zigbuild/Cargo.toml --release
 
 # Build cargo-zigbuild
