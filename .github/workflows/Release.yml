@@ -23,7 +23,7 @@ jobs:
       - name: Build
         uses: messense/maturin-action@v1
         with:
-          args: --no-sdist --release --out dist --strip --universal2
+          args: --release --out dist --strip --universal2
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -82,7 +82,7 @@ jobs:
         uses: messense/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --no-sdist --strip
+          args: --release --out dist --strip
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -141,7 +141,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           manylinux: auto
           container: off
-          args: --no-sdist --release -o dist --strip
+          args: --release -o dist --strip
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
