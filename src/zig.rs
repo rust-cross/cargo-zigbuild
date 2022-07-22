@@ -309,11 +309,11 @@ impl Zig {
             let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
             if is_mingw_shell() {
                 let zig_cc = zig_cc.to_slash_lossy();
-                cmd.env(format!("CC_{}", env_target), &zig_cc);
-                cmd.env(format!("CXX_{}", env_target), &zig_cxx.to_slash_lossy());
+                cmd.env(format!("CC_{}", env_target), &*zig_cc);
+                cmd.env(format!("CXX_{}", env_target), &*zig_cxx.to_slash_lossy());
                 cmd.env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    &zig_cc,
+                    &*zig_cc,
                 );
             } else {
                 cmd.env(format!("CC_{}", env_target), &zig_cc);
