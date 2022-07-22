@@ -565,7 +565,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         env::current_exe()?
     };
     let current_exe = if is_mingw_shell() {
-        current_exe.to_slash_lossy()
+        current_exe.to_slash_lossy().to_string()
     } else {
         current_exe.display().to_string()
     };
