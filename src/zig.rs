@@ -309,11 +309,11 @@ impl Zig {
             let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
             if is_mingw_shell() {
                 let zig_cc = zig_cc.to_slash_lossy();
-                cmd.env(format!("CC_{}", env_target), &zig_cc);
-                cmd.env(format!("CXX_{}", env_target), &zig_cxx.to_slash_lossy());
+                cmd.env(format!("CC_{}", env_target), &*zig_cc);
+                cmd.env(format!("CXX_{}", env_target), &*zig_cxx.to_slash_lossy());
                 cmd.env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    &zig_cc,
+                    &*zig_cc,
                 );
             } else {
                 cmd.env(format!("CC_{}", env_target), &zig_cc);
@@ -565,7 +565,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         env::current_exe()?
     };
     let current_exe = if is_mingw_shell() {
-        current_exe.to_slash_lossy()
+        current_exe.to_slash_lossy().to_string()
     } else {
         current_exe.display().to_string()
     };

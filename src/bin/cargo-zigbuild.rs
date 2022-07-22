@@ -1,3 +1,5 @@
+use anyhow::Context;
+use cargo_options::Metadata;
 use cargo_zigbuild::{Build, Run, Rustc, Test, Zig};
 use clap::Parser;
 
@@ -11,6 +13,8 @@ use clap::Parser;
 pub enum Opt {
     #[clap(name = "zigbuild", aliases = &["build", "b"] )]
     Build(Build),
+    #[clap(name = "metadata")]
+    Metadata(Metadata),
     #[clap(name = "rustc")]
     Rustc(Rustc),
     #[clap(name = "run", alias = "r")]
@@ -25,6 +29,16 @@ fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
     match opt {
         Opt::Build(build) => build.execute()?,
+        Opt::Metadata(metadata) => {
+            let mut cmd = metadata.command();
+            let mut child = cmd.spawn().context("Failed to run cargo metadata")?;
+            let status = child
+                .wait()
+                .expect("Failed to wait on cargo metadata process");
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+        }
         Opt::Rustc(rustc) => rustc.execute()?,
         Opt::Run(run) => run.execute()?,
         Opt::Test(test) => test.execute()?,
