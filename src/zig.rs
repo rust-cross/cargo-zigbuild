@@ -169,22 +169,20 @@ impl Zig {
         }
 
         if is_macos {
-            if let Some(sdkroot) = env::var_os("SDKROOT") {
-                if !sdkroot.is_empty() {
-                    let sdkroot = Path::new(&sdkroot);
-                    new_cmd_args.extend_from_slice(&[
-                        format!("-I{}", sdkroot.join("usr").join("include").display()),
-                        format!("-L{}", sdkroot.join("usr").join("lib").display()),
-                        format!(
-                            "-F{}",
-                            sdkroot
-                                .join("System")
-                                .join("Library")
-                                .join("Frameworks")
-                                .display()
-                        ),
-                    ]);
-                }
+            if let Some(sdkroot) = Self::macos_sdk_root() {
+                let sdkroot = Path::new(&sdkroot);
+                new_cmd_args.extend_from_slice(&[
+                    format!("-I{}", sdkroot.join("usr").join("include").display()),
+                    format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                    format!(
+                        "-F{}",
+                        sdkroot
+                            .join("System")
+                            .join("Library")
+                            .join("Frameworks")
+                            .display()
+                    ),
+                ]);
             }
         }
 
@@ -331,8 +329,8 @@ impl Zig {
             }
 
             if raw_target.contains("apple-darwin") {
-                if let Some(sdkroot) = env::var_os("SDKROOT") {
-                    if !sdkroot.is_empty() && env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none() {
+                if let Some(sdkroot) = Self::macos_sdk_root() {
+                    if env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none() {
                         // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
                         cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
                     }
@@ -400,6 +398,43 @@ impl Zig {
             }
         }
         Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn macos_sdk_root() -> Option<PathBuf> {
+        match env::var_os("SDKROOT") {
+            Some(sdkroot) => {
+                if !sdkroot.is_empty() {
+                    Some(sdkroot.into())
+                } else {
+                    None
+                }
+            }
+            None => {
+                let output = Command::new("xcrun")
+                    .args(&["--sdk", "macosx", "--show-sdk-path"])
+                    .output();
+                if let Ok(output) = output {
+                    if output.status.success() {
+                        if let Ok(stdout) = String::from_utf8(output.stdout) {
+                            let stdout = stdout.trim();
+                            if !stdout.is_empty() {
+                                return Some(stdout.into());
+                            }
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn macos_sdk_root() -> Option<PathBuf> {
+        match env::var_os("SDKROOT") {
+            Some(sdkroot) if !sdkroot.is_empty() => Some(sdkroot.into()),
+            _ => None,
+        }
     }
 }
 
@@ -514,11 +549,15 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
         };
         // See https://github.com/ziglang/zig/issues/9485
         if glibc_version < (2, 28) {
-            cc_args.push_str(&format!(
+            use std::fmt::Write as _;
+
+            write!(
+                cc_args,
                 " -Wl,--version-script={} -include {}",
                 fcntl_map.display(),
                 fcntl_h.display()
-            ));
+            )
+            .unwrap();
         }
     }
 
