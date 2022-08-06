@@ -34,16 +34,35 @@ pub enum Zig {
         #[clap(takes_value = true, multiple_values = true)]
         args: Vec<String>,
     },
+    /// `zig ar` wrapper
+    #[clap(name = "ar", trailing_var_arg = true)]
+    Ar {
+        /// `zig ar` arguments
+        #[clap(takes_value = true, multiple_values = true)]
+        args: Vec<String>,
+    },
+    /// `zig ranlib` wrapper
+    #[clap(name = "ranlib", trailing_var_arg = true)]
+    Ranlib {
+        /// `zig ranlib` arguments
+        #[clap(takes_value = true, multiple_values = true)]
+        args: Vec<String>,
+    },
 }
 
 impl Zig {
     /// Execute the underlying zig command
     pub fn execute(&self) -> Result<()> {
-        let (cmd, cmd_args) = match self {
-            Zig::Cc { args } => ("cc", args),
-            Zig::Cxx { args } => ("c++", args),
-        };
+        match self {
+            Zig::Cc { args } => self.execute_compiler("cc", args),
+            Zig::Cxx { args } => self.execute_compiler("c++", args),
+            Zig::Ar { args } => self.execute_tool("ar", args),
+            Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
+        }
+    }
 
+    /// Execute zig cc/c++ command
+    pub fn execute_compiler(&self, cmd: &str, cmd_args: &[String]) -> Result<()> {
         let target = cmd_args
             .iter()
             .position(|x| x == "-target")
@@ -198,6 +217,20 @@ impl Zig {
         Ok(())
     }
 
+    /// Execute zig ar/ranlib command
+    pub fn execute_tool(&self, cmd: &str, cmd_args: &[String]) -> Result<()> {
+        let mut child = Self::command()?
+            .arg(cmd)
+            .args(cmd_args)
+            .spawn()
+            .with_context(|| format!("Failed to run `zig {}`", cmd))?;
+        let status = child.wait().expect("Failed to wait on zig child process");
+        if !status.success() {
+            process::exit(status.code().unwrap_or(1));
+        }
+        Ok(())
+    }
+
     /// Build the zig command line
     pub fn command() -> Result<Command> {
         let (zig, zig_args) = Self::find_zig()?;
@@ -304,23 +337,28 @@ impl Zig {
         let host_target = &rustc_meta.host;
         for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
             let env_target = parsed_target.replace('-', "_");
-            let (zig_cc, zig_cxx) = prepare_zig_linker(raw_target)?;
+            let zig_wrapper = prepare_zig_linker(raw_target)?;
             if is_mingw_shell() {
-                let zig_cc = zig_cc.to_slash_lossy();
+                let zig_cc = zig_wrapper.cc.to_slash_lossy();
                 cmd.env(format!("CC_{}", env_target), &*zig_cc);
-                cmd.env(format!("CXX_{}", env_target), &*zig_cxx.to_slash_lossy());
+                cmd.env(
+                    format!("CXX_{}", env_target),
+                    &*zig_wrapper.cxx.to_slash_lossy(),
+                );
                 cmd.env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                     &*zig_cc,
                 );
             } else {
-                cmd.env(format!("CC_{}", env_target), &zig_cc);
-                cmd.env(format!("CXX_{}", env_target), &zig_cxx);
+                cmd.env(format!("CC_{}", env_target), &zig_wrapper.cc);
+                cmd.env(format!("CXX_{}", env_target), &zig_wrapper.cxx);
                 cmd.env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    &zig_cc,
+                    &zig_wrapper.cc,
                 );
             }
+            cmd.env(format!("AR_{}", env_target), &zig_wrapper.ar);
+            cmd.env(format!("RANLIB_{}", env_target), &zig_wrapper.ranlib);
 
             Self::setup_os_deps(cargo)?;
 
@@ -452,6 +490,15 @@ struct ZigEnv {
     lib_dir: String,
 }
 
+/// zig wrapper paths
+#[derive(Debug, Clone)]
+pub struct ZigWrapper {
+    pub cc: PathBuf,
+    pub cxx: PathBuf,
+    pub ar: PathBuf,
+    pub ranlib: PathBuf,
+}
+
 /// Prepare wrapper scripts for `zig cc` and `zig c++` and returns their paths
 ///
 /// We want to use `zig cc` as linker and c compiler. We want to call `python -m ziglang cc`, but
@@ -461,7 +508,7 @@ struct ZigEnv {
 /// We create different files for different args because otherwise cargo might skip recompiling even
 /// if the linker target changed
 #[allow(clippy::blocks_in_if_conditions)]
-pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
+pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
         String::new()
@@ -566,7 +613,17 @@ pub fn prepare_zig_linker(target: &str) -> Result<(PathBuf, PathBuf)> {
     write_linker_wrapper(&zig_cc, "cc", &cc_args)?;
     write_linker_wrapper(&zig_cxx, "c++", &cc_args)?;
 
-    Ok((zig_cc, zig_cxx))
+    let zig_ar = zig_linker_dir.join(format!("zigar.{}", file_ext));
+    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{}", file_ext));
+    write_linker_wrapper(&zig_ar, "ar", "")?;
+    write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
+
+    Ok(ZigWrapper {
+        cc: zig_cc,
+        cxx: zig_cxx,
+        ar: zig_ar,
+        ranlib: zig_ranlib,
+    })
 }
 
 /// Write a zig cc wrapper batch script for unix
