@@ -20,6 +20,10 @@ pub struct Rustc {
     #[clap(skip)]
     pub disable_zig_linker: bool,
 
+    /// Enable zig tools (ar, ranlib)
+    #[clap(skip)]
+    pub enable_zig_tools: bool,
+
     #[clap(flatten)]
     pub cargo: cargo_options::Rustc,
 }
@@ -49,7 +53,7 @@ impl Rustc {
     pub fn build_command(&self) -> Result<Command> {
         let mut build = self.cargo.command();
         if !self.disable_zig_linker {
-            Zig::apply_command_env(&self.cargo.common, &mut build)?;
+            Zig::apply_command_env(&self.cargo.common, &mut build, self.enable_zig_tools)?;
         }
 
         Ok(build)

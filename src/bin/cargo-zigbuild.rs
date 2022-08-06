@@ -45,7 +45,10 @@ fn main() -> anyhow::Result<()> {
     } else {
         let opt = Opt::parse();
         match opt {
-            Opt::Build(build) => build.execute()?,
+            Opt::Build(mut build) => {
+                build.enable_zig_tools = true;
+                build.execute()?
+            }
             Opt::Metadata(metadata) => {
                 let mut cmd = metadata.command();
                 let mut child = cmd.spawn().context("Failed to run cargo metadata")?;
@@ -56,9 +59,18 @@ fn main() -> anyhow::Result<()> {
                     std::process::exit(status.code().unwrap_or(1));
                 }
             }
-            Opt::Rustc(rustc) => rustc.execute()?,
-            Opt::Run(run) => run.execute()?,
-            Opt::Test(test) => test.execute()?,
+            Opt::Rustc(mut rustc) => {
+                rustc.enable_zig_tools = true;
+                rustc.execute()?
+            }
+            Opt::Run(mut run) => {
+                run.enable_zig_tools = true;
+                run.execute()?
+            }
+            Opt::Test(mut test) => {
+                test.enable_zig_tools = true;
+                test.execute()?
+            }
             Opt::Zig(zig) => zig.execute()?,
         }
     }
