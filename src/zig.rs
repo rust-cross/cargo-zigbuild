@@ -308,6 +308,7 @@ impl Zig {
     pub(crate) fn apply_command_env(
         cargo: &cargo_options::CommonOptions,
         cmd: &mut Command,
+        enable_zig_ar: bool,
     ) -> Result<()> {
         // setup zig as linker
         let rust_targets = cargo
@@ -321,26 +322,44 @@ impl Zig {
             let env_target = parsed_target.replace('-', "_");
             let zig_wrapper = prepare_zig_linker(raw_target)?;
             if is_mingw_shell() {
+                let mut add_env = |name, value| {
+                    if env::var_os(&name).is_none() {
+                        cmd.env(name, value);
+                    }
+                };
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
-                cmd.env(format!("CC_{}", env_target), &*zig_cc);
-                cmd.env(
-                    format!("CXX_{}", env_target),
-                    &*zig_wrapper.cxx.to_slash_lossy(),
-                );
-                cmd.env(
+                let zig_cxx = zig_wrapper.cxx.to_slash_lossy();
+                add_env(format!("CC_{}", env_target), &*zig_cc);
+                add_env(format!("CXX_{}", env_target), &*zig_cxx);
+                add_env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                     &*zig_cc,
                 );
             } else {
-                cmd.env(format!("CC_{}", env_target), &zig_wrapper.cc);
-                cmd.env(format!("CXX_{}", env_target), &zig_wrapper.cxx);
-                cmd.env(
+                let mut add_env = |name, value| {
+                    if env::var_os(&name).is_none() {
+                        cmd.env(name, value);
+                    }
+                };
+                add_env(format!("CC_{}", env_target), &zig_wrapper.cc);
+                add_env(format!("CXX_{}", env_target), &zig_wrapper.cxx);
+                add_env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                     &zig_wrapper.cc,
                 );
             }
-            cmd.env(format!("AR_{}", env_target), &zig_wrapper.ar);
-            cmd.env(format!("RANLIB_{}", env_target), &zig_wrapper.ranlib);
+
+            let mut add_env = |name, value| {
+                if env::var_os(&name).is_none() {
+                    cmd.env(name, value);
+                }
+            };
+            add_env(format!("RANLIB_{}", env_target), &zig_wrapper.ranlib);
+            // Only setup AR when explicitly asked to
+            // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
+            if enable_zig_ar {
+                add_env(format!("AR_{}", env_target), &zig_wrapper.ar);
+            }
 
             Self::setup_os_deps(cargo)?;
 
@@ -592,14 +611,14 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
 
     let zig_cc = zig_linker_dir.join(zig_cc);
     let zig_cxx = zig_linker_dir.join(zig_cxx);
+    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{}", file_ext));
     write_linker_wrapper(&zig_cc, "cc", &cc_args)?;
     write_linker_wrapper(&zig_cxx, "c++", &cc_args)?;
+    write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
     let zig_ar = zig_linker_dir.join(format!("ar{}", exe_ext));
-    let zig_ranlib = zig_linker_dir.join(format!("ranlib{}", exe_ext));
     symlink_wrapper(&zig_ar)?;
-    symlink_wrapper(&zig_ranlib)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
