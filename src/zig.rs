@@ -617,18 +617,20 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
     };
     #[cfg(windows)]
     {
-        if target.exists() {
-            fs::remove_file(target)?;
+        if !target.exists() {
+            // symlink on Windows requires admin privileges so we use hardlink instead
+            if std::fs::hard_link(&current_exe, target).is_err() {
+                // hard_link doesn't support cross-device links so we fallback to copy
+                std::fs::copy(&current_exe, target)?;
+            }
         }
-        std::os::windows::fs::symlink_file(&current_exe, target)?;
     }
 
     #[cfg(unix)]
     {
-        if target.exists() {
-            fs::remove_file(target)?;
+        if !target.exists() {
+            std::os::unix::fs::symlink(&current_exe, target)?;
         }
-        std::os::unix::fs::symlink(&current_exe, target)?;
     }
     Ok(())
 }
