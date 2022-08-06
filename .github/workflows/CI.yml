@@ -155,6 +155,11 @@ jobs:
           rustup target add x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
+      - name: Windows - Test build curl
+        if: matrix.os == 'windows-latest'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml --features curl
       - name: Windows - Test run
         if: matrix.os == 'windows-latest'
         run: |
