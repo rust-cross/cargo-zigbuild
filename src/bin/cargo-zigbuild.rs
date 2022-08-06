@@ -37,16 +37,11 @@ fn main() -> anyhow::Result<()> {
             args: args.collect(),
         };
         zig.execute()?;
-    } else if program_name.eq_ignore_ascii_case("ranlib") {
-        let zig = Zig::Ranlib {
-            args: args.collect(),
-        };
-        zig.execute()?;
     } else {
         let opt = Opt::parse();
         match opt {
             Opt::Build(mut build) => {
-                build.enable_zig_tools = true;
+                build.enable_zig_ar = true;
                 build.execute()?
             }
             Opt::Metadata(metadata) => {
@@ -60,15 +55,15 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             Opt::Rustc(mut rustc) => {
-                rustc.enable_zig_tools = true;
+                rustc.enable_zig_ar = true;
                 rustc.execute()?
             }
             Opt::Run(mut run) => {
-                run.enable_zig_tools = true;
+                run.enable_zig_ar = true;
                 run.execute()?
             }
             Opt::Test(mut test) => {
-                test.enable_zig_tools = true;
+                test.enable_zig_ar = true;
                 test.execute()?
             }
             Opt::Zig(zig) => zig.execute()?,
