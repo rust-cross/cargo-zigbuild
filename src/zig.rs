@@ -234,14 +234,7 @@ impl Zig {
     /// Build the zig command line
     pub fn command() -> Result<Command> {
         let (zig, zig_args) = Self::find_zig()?;
-        let mut cmd = if cfg!(target_os = "windows") {
-            let mut cmd = Command::new("cmd.exe");
-            cmd.arg("/c");
-            cmd.arg(zig);
-            cmd
-        } else {
-            Command::new(zig)
-        };
+        let mut cmd = Command::new(zig);
         cmd.args(zig_args);
         Ok(cmd)
     }
@@ -255,46 +248,35 @@ impl Zig {
     }
 
     /// Search for `python -m ziglang` first and for `zig` second.
-    pub fn find_zig() -> Result<(String, Vec<String>)> {
+    pub fn find_zig() -> Result<(PathBuf, Vec<String>)> {
         Self::find_zig_python()
             .or_else(|_| Self::find_zig_bin())
             .context("Failed to find zig")
     }
 
     /// Detect the plain zig binary
-    fn find_zig_bin() -> Result<(String, Vec<String>)> {
-        let zig_path = zig_path();
-        let output = if cfg!(target_os = "windows") {
-            Command::new("cmd.exe")
-                .args(&["/c", &zig_path, "version"])
-                .output()?
-        } else {
-            Command::new(&zig_path).arg("version").output()?
-        };
+    fn find_zig_bin() -> Result<(PathBuf, Vec<String>)> {
+        let zig_path = zig_path()?;
+        let output = Command::new(&zig_path).arg("version").output()?;
 
-        let version_str = str::from_utf8(&output.stdout)
-            .with_context(|| format!("`{} version` didn't return utf8 output", &zig_path))?;
+        let version_str = str::from_utf8(&output.stdout).with_context(|| {
+            format!("`{} version` didn't return utf8 output", zig_path.display())
+        })?;
         Self::validate_zig_version(version_str)?;
         Ok((zig_path, Vec::new()))
     }
 
     /// Detect the Python ziglang package
-    fn find_zig_python() -> Result<(String, Vec<String>)> {
-        let python_path = python_path();
-        let output = if cfg!(target_os = "windows") {
-            Command::new("cmd.exe")
-                .args(&["/c", &python_path, "-m", "ziglang", "version"])
-                .output()?
-        } else {
-            Command::new(&python_path)
-                .args(&["-m", "ziglang", "version"])
-                .output()?
-        };
+    fn find_zig_python() -> Result<(PathBuf, Vec<String>)> {
+        let python_path = python_path()?;
+        let output = Command::new(&python_path)
+            .args(&["-m", "ziglang", "version"])
+            .output()?;
 
         let version_str = str::from_utf8(&output.stdout).with_context(|| {
             format!(
                 "`{} -m ziglang version` didn't return utf8 output",
-                &python_path
+                python_path.display()
             )
         })?;
         Self::validate_zig_version(version_str)?;
@@ -715,10 +697,12 @@ pub fn adjust_canonicalization(p: String) -> String {
     }
 }
 
-fn python_path() -> String {
-    env::var("CARGO_ZIGBUILD_PYTHON_PATH").unwrap_or_else(|_| "python3".to_string())
+fn python_path() -> Result<PathBuf> {
+    let python = env::var("CARGO_ZIGBUILD_PYTHON_PATH").unwrap_or_else(|_| "python3".to_string());
+    Ok(which::which(python)?)
 }
 
-fn zig_path() -> String {
-    env::var("CARGO_ZIGBUILD_ZIG_PATH").unwrap_or_else(|_| "zig".to_string())
+fn zig_path() -> Result<PathBuf> {
+    let zig = env::var("CARGO_ZIGBUILD_ZIG_PATH").unwrap_or_else(|_| "zig".to_string());
+    Ok(which::which(zig)?)
 }
