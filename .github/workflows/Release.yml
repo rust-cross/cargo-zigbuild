@@ -47,14 +47,13 @@ jobs:
           shasum -a 256 cargo-zigbuild-${{ steps.tag.outputs.tag }}.apple-darwin.tar.gz > cargo-zigbuild-${{ steps.tag.outputs.tag }}.apple-darwin.tar.gz.sha256
           cd -
       - name: Upload binary to GitHub Release
-        uses: svenstaro/upload-release-action@v2
         if: "startsWith(github.ref, 'refs/tags/')"
+        uses: softprops/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/cargo-zigbuild*.tar.gz
-          file_glob: true
-          overwrite: true
-          tag: ${{ github.ref }}
+          files: |
+            target/release/cargo-zigbuild*.tar.gz*
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          generate_release_notes: true
 
   windows:
     runs-on: windows-latest
@@ -102,17 +101,16 @@ jobs:
         if: "startsWith(github.ref, 'refs/tags/')"
         run: |
           cd target/${{ matrix.platform.target }}/release
-          7z a cargo-zigbuild.zip cargo-zigbuild.exe
+          7z a cargo-zigbuild-${{ steps.tag.outputs.tag }}.windows-${{ matrix.platform.arch }}.zip cargo-zigbuild.exe
           cd -
       - name: Upload binary to GitHub Release
-        uses: svenstaro/upload-release-action@v2
         if: "startsWith(github.ref, 'refs/tags/')"
+        uses: softprops/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          asset_name: cargo-zigbuild-${{ steps.tag.outputs.tag }}.windows-${{ matrix.platform.arch }}.zip
-          file: target/${{ matrix.platform.target }}/release/cargo-zigbuild.zip
-          overwrite: true
-          tag: ${{ github.ref }}
+          files: |
+            target/${{ matrix.platform.target }}/release/cargo-zigbuild-*.zip
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          generate_release_notes: true
 
   linux:
     runs-on: ubuntu-latest
@@ -165,14 +163,13 @@ jobs:
           shasum -a 256 cargo-zigbuild-${{ steps.tag.outputs.tag }}.${{ matrix.platform.target }}.tar.gz > cargo-zigbuild-${{ steps.tag.outputs.tag }}.${{ matrix.platform.target }}.tar.gz.sha256
           cd -
       - name: Upload binary to GitHub Release
-        uses: svenstaro/upload-release-action@v2
         if: "startsWith(github.ref, 'refs/tags/')"
+        uses: softprops/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/${{ matrix.platform.target }}/release/cargo-zigbuild*.tar.gz*
-          file_glob: true
-          overwrite: true
-          tag: ${{ github.ref }}
+          files: |
+            target/${{ matrix.platform.target }}/release/cargo-zigbuild*.tar.gz*
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          generate_release_notes: true
 
   docker:
     name: Build Docker Image
