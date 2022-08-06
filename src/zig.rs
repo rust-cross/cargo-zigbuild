@@ -613,10 +613,11 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     write_linker_wrapper(&zig_cc, "cc", &cc_args)?;
     write_linker_wrapper(&zig_cxx, "c++", &cc_args)?;
 
-    let zig_ar = zig_linker_dir.join(format!("zigar.{}", file_ext));
-    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{}", file_ext));
-    write_linker_wrapper(&zig_ar, "ar", "")?;
-    write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
+    let exe_ext = if cfg!(windows) { ".exe" } else { "" };
+    let zig_ar = zig_linker_dir.join(format!("ar{}", exe_ext));
+    let zig_ranlib = zig_linker_dir.join(format!("ranlib{}", exe_ext));
+    symlink_wrapper(&zig_ar)?;
+    symlink_wrapper(&zig_ranlib)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
@@ -624,6 +625,30 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         ar: zig_ar,
         ranlib: zig_ranlib,
     })
+}
+
+fn symlink_wrapper(target: &Path) -> Result<()> {
+    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
+        PathBuf::from(exe)
+    } else {
+        env::current_exe()?
+    };
+    #[cfg(windows)]
+    {
+        if target.exists() {
+            fs::remove_file(target)?;
+        }
+        std::os::windows::fs::symlink_file(&current_exe, target)?;
+    }
+
+    #[cfg(unix)]
+    {
+        if target.exists() {
+            fs::remove_file(target)?;
+        }
+        std::os::unix::fs::symlink(&current_exe, target)?;
+    }
+    Ok(())
 }
 
 /// Write a zig cc wrapper batch script for unix
