@@ -74,7 +74,7 @@ impl Zig {
         let is_windows_msvc = target
             .map(|x| x.contains("windows-msvc"))
             .unwrap_or_default();
-        let is_arm = target.map(|x| x.contains("arm")).unwrap_or_default();
+        let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
@@ -114,6 +114,10 @@ impl Zig {
                 if arg == "-lc" {
                     return None;
                 }
+            }
+            // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
+            if is_arm && arg.starts_with("-march=") {
+                return None;
             }
             Some(arg.to_string())
         };
@@ -546,10 +550,27 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let zig_cxx = format!("zigcxx-{}.{}", file_target, file_ext);
     let cc_args = "-g"; // prevent stripping
     let mut cc_args = match triple.operating_system {
-        OperatingSystem::Linux => format!(
-            "-target {}-linux-{}{} {}",
-            arch, target_env, abi_suffix, cc_args,
-        ),
+        OperatingSystem::Linux => {
+            let (zig_arch, zig_cpu) = match arch.as_str() {
+                // zig uses _ instead of - in cpu features
+                "arm" => match target_env {
+                    Environment::Gnueabi | Environment::Musleabi => {
+                        ("arm", "-mcpu=generic+v6+strict_align")
+                    }
+                    Environment::Gnueabihf | Environment::Musleabihf => {
+                        ("arm", "-mcpu=generic+v6+strict_align+vfp2-d32")
+                    }
+                    _ => ("arm", ""),
+                },
+                "armv5te" => ("arm", "-mcpu=generic+soft_float+strict_align"),
+                "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
+                _ => (arch.as_str(), ""),
+            };
+            format!(
+                "-target {}-linux-{}{} {} {}",
+                zig_arch, target_env, abi_suffix, zig_cpu, cc_args,
+            )
+        }
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
             let zig_version = Zig::zig_version()?;
             // Zig 0.10.0 switched macOS ABI to none
