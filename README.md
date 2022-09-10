@@ -30,6 +30,8 @@ docker run --rm -it -v $(pwd):/io -w /io messense/cargo-zigbuild \
   cargo zigbuild --release --target x86_64-apple-darwin
 ```
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/cargo-zigbuild.svg?columns=4)](https://repology.org/project/cargo-zigbuild/versions)
+
 ## Usage
 
 1. Install [zig](https://ziglang.org/) following the [official documentation](https://ziglang.org/learn/getting-started/#installing-zig),
