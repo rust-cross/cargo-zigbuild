@@ -543,11 +543,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let triple: Triple = rust_target
         .parse()
         .with_context(|| format!("Unsupported Rust target '{}'", rust_target))?;
-    let arch = match triple.architecture {
-        // zig target only has i386, no i586/i686
-        Architecture::X86_32(..) => "i386".to_string(),
-        architecture => architecture.to_string(),
-    };
+    let arch = triple.architecture.to_string();
     let target_env = match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
         (_, environment) => environment,
