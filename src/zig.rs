@@ -75,6 +75,7 @@ impl Zig {
             .map(|x| x.contains("windows-msvc"))
             .unwrap_or_default();
         let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
+        let is_i386 = target.map(|x| x.starts_with("i386")).unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
@@ -117,6 +118,9 @@ impl Zig {
             }
             // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
             if is_arm && arg.starts_with("-march=") {
+                return None;
+            }
+            if is_i386 && arg.starts_with("-march=") {
                 return None;
             }
             Some(arg.to_string())
@@ -564,6 +568,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 },
                 "armv5te" => ("arm", "-mcpu=generic+soft_float+strict_align"),
                 "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
+                "i586" => ("i386", "-mcpu=pentium"),
+                "i686" => ("i386", "-mcpu=pentium4"),
                 _ => (arch.as_str(), ""),
             };
             format!(
