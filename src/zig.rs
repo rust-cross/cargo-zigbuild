@@ -76,6 +76,7 @@ impl Zig {
             .unwrap_or_default();
         let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
         let is_i386 = target.map(|x| x.starts_with("i386")).unwrap_or_default();
+        let is_riscv64 = target.map(|x| x.starts_with("riscv64")).unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
@@ -122,6 +123,9 @@ impl Zig {
             }
             if is_i386 && arg.starts_with("-march=") {
                 return None;
+            }
+            if is_riscv64 && arg.starts_with("-march=") {
+                return Some("-march=generic_rv64".to_string());
             }
             Some(arg.to_string())
         };
@@ -539,11 +543,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let triple: Triple = rust_target
         .parse()
         .with_context(|| format!("Unsupported Rust target '{}'", rust_target))?;
-    let arch = match triple.architecture {
-        // zig target only has i386, no i586/i686
-        Architecture::X86_32(..) => "i386".to_string(),
-        architecture => architecture.to_string(),
-    };
+    let arch = triple.architecture.to_string();
     let target_env = match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
         (_, environment) => environment,
@@ -570,6 +570,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
                 "i586" => ("i386", "-mcpu=pentium"),
                 "i686" => ("i386", "-mcpu=pentium4"),
+                "riscv64gc" => ("riscv64", "-mcpu=generic_rv64+m+a+f+d+c"),
                 _ => (arch.as_str(), ""),
             };
             format!(
