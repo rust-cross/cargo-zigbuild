@@ -157,8 +157,10 @@ jobs:
       - name: Windows - Test gnu build
         run: |
           rustup target add x86_64-pc-windows-gnu
+          rustup target add i686-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
+          cargo run zigbuild --target i686-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
       - name: Windows - Test build curl
         if: matrix.os == 'windows-latest'
         run: |
