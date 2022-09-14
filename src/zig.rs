@@ -588,10 +588,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
             }
         }
-        OperatingSystem::Windows { .. } => format!(
-            "-target {}-windows-{}{} {}",
-            arch, target_env, abi_suffix, cc_args,
-        ),
+        OperatingSystem::Windows { .. } => {
+            let zig_arch = match arch.as_str() {
+                "i686" => "i386",
+                arch => arch,
+            };
+            format!(
+                "-target {}-windows-{}{} {}",
+                zig_arch, target_env, abi_suffix, cc_args,
+            )
+        }
         _ => bail!("unsupported target"),
     };
 
