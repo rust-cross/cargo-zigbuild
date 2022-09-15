@@ -375,6 +375,19 @@ impl Zig {
 
             Self::setup_os_deps(cargo)?;
 
+            let cmake_toolchain_file_env = format!("CMAKE_TOOLCHAIN_FILE_{}", env_target);
+            if env::var_os(&cmake_toolchain_file_env).is_none()
+                && env::var_os(format!("CMAKE_TOOLCHAIN_FILE_{}", parsed_target)).is_none()
+                && env::var_os("TARGET_CMAKE_TOOLCHAIN_FILE").is_none()
+                && env::var_os("CMAKE_TOOLCHAIN_FILE").is_none()
+            {
+                if let Ok(cmake_toolchain_file) =
+                    Self::setup_cmake_toolchain(parsed_target, &zig_wrapper)
+                {
+                    cmd.env(cmake_toolchain_file_env, cmake_toolchain_file);
+                }
+            }
+
             if raw_target.contains("windows-gnu") {
                 cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
             }
@@ -449,6 +462,51 @@ impl Zig {
             }
         }
         Ok(())
+    }
+
+    fn setup_cmake_toolchain(target: &str, zig_wrapper: &ZigWrapper) -> Result<PathBuf> {
+        let cmake = cache_dir()?.join("cmake");
+        fs::create_dir_all(&cmake)?;
+
+        let toolchain_file = cmake.join(format!("{}-toolchain.cmake", target));
+        let triple: Triple = target.parse()?;
+        let os = triple.operating_system.to_string();
+        let arch = triple.architecture.to_string();
+        let (system_name, system_processor) = match (os.as_str(), arch.as_str()) {
+            ("darwin", "x86_64") => ("Darwin", "x86_64"),
+            ("darwin", "aarch64") => ("Darwin", "arm64"),
+            ("linux", arch) => {
+                let cmake_arch = match arch {
+                    "powerpc" => "ppc",
+                    "powerpc64" => "ppc64",
+                    "powerpc64le" => "ppc64le",
+                    _ => arch,
+                };
+                ("Linux", cmake_arch)
+            }
+            ("windows", "x86_64") => ("Windows", "AMD64"),
+            ("windows", "i686") => ("Windows", "X86"),
+            ("windows", "aarch64") => ("Windows", "ARM64"),
+            (os, arch) => (os, arch),
+        };
+        let content = format!(
+            r#"
+set(CMAKE_SYSTEM_NAME {system_name})
+set(CMAKE_SYSTEM_PROCESSOR {system_processor})
+set(CMAKE_C_COMPILER {cc})
+set(CMAKE_CXX_COMPILER {cxx})
+set(CMAKE_AR {ar})
+set(CMAKE_RANLIB {ranlib})
+            "#,
+            system_name = system_name,
+            system_processor = system_processor,
+            cc = zig_wrapper.cc.display(),
+            cxx = zig_wrapper.cxx.display(),
+            ar = zig_wrapper.ar.display(),
+            ranlib = zig_wrapper.ranlib.display(),
+        );
+        fs::write(&toolchain_file, content)?;
+        Ok(toolchain_file)
     }
 
     #[cfg(target_os = "macos")]
