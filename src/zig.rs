@@ -382,7 +382,7 @@ impl Zig {
                 && env::var_os("CMAKE_TOOLCHAIN_FILE").is_none()
             {
                 if let Ok(cmake_toolchain_file) =
-                    Self::setup_cmake_toolchain(parsed_target, &zig_wrapper)
+                    Self::setup_cmake_toolchain(parsed_target, &zig_wrapper, enable_zig_ar)
                 {
                     cmd.env(cmake_toolchain_file_env, cmake_toolchain_file);
                 }
@@ -464,7 +464,11 @@ impl Zig {
         Ok(())
     }
 
-    fn setup_cmake_toolchain(target: &str, zig_wrapper: &ZigWrapper) -> Result<PathBuf> {
+    fn setup_cmake_toolchain(
+        target: &str,
+        zig_wrapper: &ZigWrapper,
+        enable_zig_ar: bool,
+    ) -> Result<PathBuf> {
         let cmake = cache_dir()?.join("cmake");
         fs::create_dir_all(&cmake)?;
 
@@ -489,22 +493,22 @@ impl Zig {
             ("windows", "aarch64") => ("Windows", "ARM64"),
             (os, arch) => (os, arch),
         };
-        let content = format!(
+        let mut content = format!(
             r#"
 set(CMAKE_SYSTEM_NAME {system_name})
 set(CMAKE_SYSTEM_PROCESSOR {system_processor})
 set(CMAKE_C_COMPILER {cc})
 set(CMAKE_CXX_COMPILER {cxx})
-set(CMAKE_AR {ar})
-set(CMAKE_RANLIB {ranlib})
-            "#,
+set(CMAKE_RANLIB {ranlib})"#,
             system_name = system_name,
             system_processor = system_processor,
             cc = zig_wrapper.cc.display(),
             cxx = zig_wrapper.cxx.display(),
-            ar = zig_wrapper.ar.display(),
             ranlib = zig_wrapper.ranlib.display(),
         );
+        if enable_zig_ar {
+            content.push_str(&format!("\nset(CMAKE_AR {})\n", zig_wrapper.ar.display()));
+        }
         fs::write(&toolchain_file, content)?;
         Ok(toolchain_file)
     }
