@@ -9,21 +9,20 @@ use crate::Zig;
 
 /// Execute all unit and integration tests and build examples of a local package
 #[derive(Clone, Debug, Default, Parser)]
-#[clap(
-    setting = clap::AppSettings::DeriveDisplayOrder,
-    trailing_var_arg = true,
-    after_help = "Run `cargo help test` for more detailed information.\nRun `cargo test -- --help` for test binary options.")
-]
+#[command(
+    display_order = 1,
+    after_help = "Run `cargo help test` for more detailed information.\nRun `cargo test -- --help` for test binary options."
+)]
 pub struct Test {
     /// Disable zig linker
-    #[clap(skip)]
+    #[arg(skip)]
     pub disable_zig_linker: bool,
 
     /// Enable zig ar
-    #[clap(skip)]
+    #[arg(skip)]
     pub enable_zig_ar: bool,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub cargo: cargo_options::Test,
 }
 

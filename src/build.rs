@@ -10,17 +10,20 @@ use crate::zig::Zig;
 /// Compile a local package and all of its dependencies
 /// using zig as the linker
 #[derive(Clone, Debug, Default, Parser)]
-#[clap(setting = clap::AppSettings::DeriveDisplayOrder, after_help = "Run `cargo help build` for more detailed information.")]
+#[command(
+    after_help = "Run `cargo help build` for more detailed information.",
+    display_order = 1
+)]
 pub struct Build {
-    #[clap(flatten)]
+    #[command(flatten)]
     pub cargo: cargo_options::Build,
 
     /// Disable zig linker
-    #[clap(skip)]
+    #[arg(skip)]
     pub disable_zig_linker: bool,
 
     /// Enable zig ar
-    #[clap(skip)]
+    #[arg(skip)]
     pub enable_zig_ar: bool,
 }
 

@@ -8,23 +8,19 @@ use clap::Parser;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
-#[clap(
-    version,
-    name = "cargo-zigbuild",
-    global_setting(clap::AppSettings::DeriveDisplayOrder)
-)]
+#[command(version, name = "cargo-zigbuild", display_order = 1)]
 pub enum Opt {
-    #[clap(name = "zigbuild", aliases = &["build", "b"] )]
+    #[command(name = "zigbuild", aliases = &["build", "b"] )]
     Build(Build),
-    #[clap(name = "metadata")]
+    #[command(name = "metadata")]
     Metadata(Metadata),
-    #[clap(name = "rustc")]
+    #[command(name = "rustc")]
     Rustc(Rustc),
-    #[clap(name = "run", alias = "r")]
+    #[command(name = "run", alias = "r")]
     Run(Run),
-    #[clap(name = "test", alias = "t")]
+    #[command(name = "test", alias = "t")]
     Test(Test),
-    #[clap(subcommand)]
+    #[command(subcommand)]
     Zig(Zig),
 }
 
