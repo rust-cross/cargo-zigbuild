@@ -10,21 +10,20 @@ use crate::Zig;
 /// Compile a package, and pass extra options to the compiler
 /// with zig as the linker
 #[derive(Clone, Debug, Default, Parser)]
-#[clap(
-    setting = clap::AppSettings::DeriveDisplayOrder,
-    trailing_var_arg = true,
+#[command(
+    display_order = 1,
     after_help = "Run `cargo help rustc` for more detailed information."
 )]
 pub struct Rustc {
     /// Disable zig linker
-    #[clap(skip)]
+    #[arg(skip)]
     pub disable_zig_linker: bool,
 
     /// Enable zig ar
-    #[clap(skip)]
+    #[arg(skip)]
     pub enable_zig_ar: bool,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub cargo: cargo_options::Rustc,
 }
 

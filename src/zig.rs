@@ -21,31 +21,31 @@ use crate::macos::LIBICONV_TBD;
 #[derive(Clone, Debug, clap::Subcommand)]
 pub enum Zig {
     /// `zig cc` wrapper
-    #[clap(name = "cc", trailing_var_arg = true)]
+    #[command(name = "cc")]
     Cc {
         /// `zig cc` arguments
-        #[clap(takes_value = true, multiple_values = true)]
+        #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
     /// `zig c++` wrapper
-    #[clap(name = "c++", trailing_var_arg = true)]
+    #[command(name = "c++")]
     Cxx {
         /// `zig c++` arguments
-        #[clap(takes_value = true, multiple_values = true)]
+        #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
     /// `zig ar` wrapper
-    #[clap(name = "ar", trailing_var_arg = true)]
+    #[command(name = "ar")]
     Ar {
         /// `zig ar` arguments
-        #[clap(takes_value = true, multiple_values = true)]
+        #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
     /// `zig ranlib` wrapper
-    #[clap(name = "ranlib", trailing_var_arg = true)]
+    #[command(name = "ranlib")]
     Ranlib {
         /// `zig ranlib` arguments
-        #[clap(takes_value = true, multiple_values = true)]
+        #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
 }
