@@ -1,12 +1,13 @@
 [package]
 name = "cargo-zigbuild"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2018"
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/messense/cargo-zigbuild"
+rust-version = "1.61"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
