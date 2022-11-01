@@ -86,7 +86,10 @@ impl Zig {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
             }
-            if is_arm && arg.ends_with(".rlib") && arg.contains("libcompiler_builtins-") {
+            if (is_arm || is_windows_gnu)
+                && arg.ends_with(".rlib")
+                && arg.contains("libcompiler_builtins-")
+            {
                 // compiler-builtins is duplicated with zig's compiler-rt
                 return None;
             }
