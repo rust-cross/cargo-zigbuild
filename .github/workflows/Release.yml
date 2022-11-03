@@ -11,13 +11,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: aarch64-apple-darwin
-          profile: minimal
-          default: true
+          targets: aarch64-apple-darwin
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
       - name: Build
@@ -69,12 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v2
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
+      - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
       - name: Build
