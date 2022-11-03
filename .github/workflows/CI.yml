@@ -23,7 +23,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.zig == 'master' || matrix.toolchain == 'nightly' }}
+    continue-on-error: ${{ matrix.zig == 'master' || matrix.toolchain == 'nightly' || matrix.os == 'windows-latest' }}
     strategy:
       # If one platform fails, allow the rest to keep testing if `CI-no-fail-fast` label is present
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
