@@ -611,6 +611,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let arch = triple.architecture.to_string();
     let target_env = match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
+        (_, Environment::GnuLlvm) => Environment::Gnu,
         (_, environment) => environment,
     };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
