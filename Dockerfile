@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.64.0
+ARG RUST_VERSION=1.65.0
 
 FROM rust:$RUST_VERSION as builder
 
@@ -20,7 +20,7 @@ RUN cargo build --manifest-path /cargo-zigbuild/Cargo.toml --release
 FROM rust:$RUST_VERSION
 
 # Install Zig
-ARG ZIG_VERSION=0.9.1
+ARG ZIG_VERSION=0.10.0
 RUN curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-$(uname -m)-${ZIG_VERSION}.tar.xz" | tar -J -x -C /usr/local && \
     ln -s "/usr/local/zig-linux-$(uname -m)-${ZIG_VERSION}/zig" /usr/local/bin/zig
 
