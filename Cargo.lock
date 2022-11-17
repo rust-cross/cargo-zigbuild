@@ -37,8 +37,7 @@ dependencies = [
 [[package]]
 name = "cargo-options"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6755badfe5e0224c6e2ae710d82cd7dce5866e8ebcb22e5f3eced8f25fbd1ace"
+source = "git+https://github.com/oldgalileo/cargo-options?branch=galileo/add-clippy#be6f52e6008a2571fe04cb54e6bfc1e88f456765"
 dependencies = [
  "clap",
 ]
