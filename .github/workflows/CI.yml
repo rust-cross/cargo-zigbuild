@@ -63,9 +63,9 @@ jobs:
             tests/libhello/target
           key: test-crates-${{ runner.os }}-${{ steps.rustup.outputs.cachekey }}-${{ hashFiles('tests/*/Cargo.lock') }}
       - name: Install zig
-        uses: goto-bus-stop/setup-zig@v1
+        uses: korandoru/setup-zig@v1
         with:
-          version: ${{ matrix.zig }}
+          zig-version: ${{ matrix.zig }}
       - run: zig version
       - run: cargo build
       - name: macOS - Test build
