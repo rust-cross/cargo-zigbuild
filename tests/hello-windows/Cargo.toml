@@ -7,4 +7,4 @@ edition = "2018"
 
 [dependencies]
 winapi = { version = "0.3.9", features = ["sysinfoapi"] }
-windows-sys = { version = "0.36.0", features = ["Win32_System_SystemInformation"] }
+windows-sys = { version = "0.42.0", features = ["Win32_System_SystemInformation"] }
