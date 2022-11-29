@@ -10,11 +10,11 @@ use crate::Zig;
 #[derive(Clone, Debug, Default, Parser)]
 #[command(
     display_order = 1,
-    after_help = "Run `cargo help clippy` for more detailed information."
+    after_help = "Run `cargo help check` for more detailed information."
 )]
-pub struct Clippy {
+pub struct Check {
     #[command(flatten)]
-    pub cargo: cargo_options::Clippy,
+    pub cargo: cargo_options::Check,
 
     /// Disable zig linker
     #[arg(skip)]
@@ -25,8 +25,8 @@ pub struct Clippy {
     pub enable_zig_ar: bool,
 }
 
-impl Clippy {
-    /// Create a new run from manifest path
+impl Check {
+    /// Create a new check from manifest path
     #[allow(clippy::field_reassign_with_default)]
     pub fn new(manifest_path: Option<PathBuf>) -> Self {
         let mut build = Self::default();
@@ -34,14 +34,12 @@ impl Clippy {
         build
     }
 
-    /// Execute `cargo clippy` command
+    /// Execute `cargo check` command
     pub fn execute(&self) -> Result<()> {
         let mut run = self.build_command()?;
 
-        let mut child = run.spawn().context("Failed to run cargo clippy")?;
-        let status = child
-            .wait()
-            .expect("Failed to wait on cargo clippy process");
+        let mut child = run.spawn().context("Failed to run cargo check")?;
+        let status = child.wait().expect("Failed to wait on cargo check process");
         if !status.success() {
             process::exit(status.code().unwrap_or(1));
         }
@@ -59,22 +57,22 @@ impl Clippy {
     }
 }
 
-impl Deref for Clippy {
-    type Target = cargo_options::Clippy;
+impl Deref for Check {
+    type Target = cargo_options::Check;
 
     fn deref(&self) -> &Self::Target {
         &self.cargo
     }
 }
 
-impl DerefMut for Clippy {
+impl DerefMut for Check {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cargo
     }
 }
 
-impl From<cargo_options::Clippy> for Clippy {
-    fn from(cargo: cargo_options::Clippy) -> Self {
+impl From<cargo_options::Check> for Check {
+    fn from(cargo: cargo_options::Check) -> Self {
         Self {
             cargo,
             ..Default::default()

@@ -1,4 +1,5 @@
 mod build;
+mod check;
 mod clippy;
 pub mod linux;
 pub mod macos;
