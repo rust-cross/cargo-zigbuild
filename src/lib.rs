@@ -10,6 +10,7 @@ pub mod zig;
 
 pub use crate::clippy::Clippy;
 pub use build::Build;
+pub use check::Check;
 pub use run::Run;
 pub use rustc::Rustc;
 pub use test::Test;

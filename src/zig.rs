@@ -285,7 +285,7 @@ impl Zig {
     fn find_zig_python() -> Result<(PathBuf, Vec<String>)> {
         let python_path = python_path()?;
         let output = Command::new(&python_path)
-            .args(&["-m", "ziglang", "version"])
+            .args(["-m", "ziglang", "version"])
             .output()?;
 
         let version_str = str::from_utf8(&output.stdout).with_context(|| {
@@ -430,7 +430,7 @@ impl Zig {
                         .as_deref()
                         .unwrap_or_else(|| Path::new("Cargo.toml"));
                     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-                    metadata_cmd.manifest_path(&manifest_path);
+                    metadata_cmd.manifest_path(manifest_path);
                     let metadata = metadata_cmd.exec()?;
                     metadata.target_directory.into_std_path_buf().join(target)
                 };
@@ -528,7 +528,7 @@ set(CMAKE_RANLIB {ranlib})"#,
             }
             None => {
                 let output = Command::new("xcrun")
-                    .args(&["--sdk", "macosx", "--show-sdk-path"])
+                    .args(["--sdk", "macosx", "--show-sdk-path"])
                     .output();
                 if let Ok(output) = output {
                     if output.status.success() {
