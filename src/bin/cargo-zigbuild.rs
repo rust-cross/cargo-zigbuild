@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use cargo_options::Metadata;
-use cargo_zigbuild::{Build, Run, Rustc, Test, Zig};
+use cargo_zigbuild::{Build, Clippy, Run, Rustc, Test, Zig};
 use clap::Parser;
 
 #[allow(clippy::large_enum_variant)]
@@ -12,6 +12,8 @@ use clap::Parser;
 pub enum Opt {
     #[command(name = "zigbuild", aliases = &["build", "b"] )]
     Build(Build),
+    #[command(name = "clippy")]
+    Clippy(Clippy),
     #[command(name = "metadata")]
     Metadata(Metadata),
     #[command(name = "rustc")]
@@ -39,6 +41,10 @@ fn main() -> anyhow::Result<()> {
             Opt::Build(mut build) => {
                 build.enable_zig_ar = true;
                 build.execute()?
+            }
+            Opt::Clippy(mut clippy) => {
+                clippy.enable_zig_ar = true;
+                clippy.execute()?
             }
             Opt::Metadata(metadata) => {
                 let mut cmd = metadata.command();
