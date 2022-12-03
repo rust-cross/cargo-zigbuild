@@ -417,6 +417,27 @@ impl Zig {
                 cmd.env("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST", "true");
                 cmd.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
             }
+
+            // bindgen support (Linux only)
+            if let Ok(lib_dir) = Zig::lib_dir() {
+                if raw_target.contains("linux") {
+                    let libc = lib_dir.join("libc");
+                    let bindgen_env = format!("BINDGEN_EXTRA_CLANG_ARGS_{}", env_target);
+                    if raw_target.contains("musl") {
+                        cmd.env(
+                            bindgen_env,
+                            format!("--sysroot={}", libc.join("musl").display()),
+                        );
+                    } else if raw_target.contains("gnu") {
+                        let bindgen_args = format!(
+                            "--sysroot={} -I{}",
+                            libc.join("glibc").display(),
+                            libc.join("include").join("generic-glibc").display()
+                        );
+                        cmd.env(bindgen_env, bindgen_args);
+                    }
+                }
+            }
         }
         Ok(())
     }
