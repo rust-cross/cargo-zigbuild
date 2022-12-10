@@ -17,7 +17,7 @@ jobs:
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
       - name: Build
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           args: --release --out dist --strip --universal2
       - name: Upload wheels
@@ -69,7 +69,7 @@ jobs:
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v1
       - name: Build
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --strip
@@ -115,7 +115,7 @@ jobs:
           { target: "armv7-unknown-linux-musleabi", image_tag: "armv7-musleabi" },
         ]
     container:
-      image: docker://messense/rust-musl-cross:${{ matrix.platform.image_tag }}
+      image: docker://ghcr.io/rust-cross/rust-musl-cross:${{ matrix.platform.image_tag }}
       env:
         CFLAGS_armv7_unknown_linux_musleabihf: '-mfpu=vfpv3-d16'
     steps:
@@ -125,7 +125,7 @@ jobs:
         with:
           key: ${{ matrix.platform.target }}
       - name: Build
-        uses: messense/maturin-action@main
+        uses: PyO3/maturin-action@main
         with:
           target: ${{ matrix.platform.target }}
           manylinux: auto
@@ -173,8 +173,8 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            messense/cargo-zigbuild
-            ghcr.io/messense/cargo-zigbuild
+            ${{ secrets.DOCKER_USERNAME }}/cargo-zigbuild
+            ghcr.io/${{ github.repository_owner }}/cargo-zigbuild
           tags: |
             type=schedule
             type=ref,event=branch
@@ -216,7 +216,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
-          repository: messense/cargo-zigbuild
+          repository: ${{ secrets.DOCKER_USERNAME }}/cargo-zigbuild
 
   release:
     name: Release
@@ -230,7 +230,7 @@ jobs:
       - name: Publish to PyPI
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_PASSWORD }}
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           command: upload
           args: --skip-existing *
