@@ -748,7 +748,7 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         if !target.exists() {
-            std::os::unix::fs::symlink(&current_exe, target)?;
+            std::os::unix::fs::symlink(current_exe, target)?;
         }
     }
     Ok(())
