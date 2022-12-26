@@ -748,6 +748,10 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         if !target.exists() {
+            if fs::read_link(target).is_ok() {
+                // remove broken symlink
+                fs::remove_file(target)?;
+            }
             std::os::unix::fs::symlink(current_exe, target)?;
         }
     }
