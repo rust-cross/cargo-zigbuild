@@ -637,6 +637,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 "i586" => ("i386", "-mcpu=pentium"),
                 "i686" => ("i386", "-mcpu=pentium4"),
                 "riscv64gc" => ("riscv64", "-mcpu=generic_rv64+m+a+f+d+c"),
+                "s390x" => ("s390x", "-mcpu=z10-vector"),
                 _ => (arch.as_str(), ""),
             };
             format!(
