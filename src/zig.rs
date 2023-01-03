@@ -665,7 +665,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 zig_arch, target_env, abi_suffix, cc_args,
             )
         }
-        _ => bail!("unsupported target"),
+        _ => bail!(format!("unsupported target '{}'", rust_target)),
     };
 
     let zig_linker_dir = cache_dir()?;
