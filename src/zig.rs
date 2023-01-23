@@ -472,7 +472,7 @@ impl Zig {
         zig_wrapper: &ZigWrapper,
         enable_zig_ar: bool,
     ) -> Result<PathBuf> {
-        let cmake = cache_dir()?.join("cmake");
+        let cmake = cache_dir().join("cmake");
         fs::create_dir_all(&cmake)?;
 
         let toolchain_file = cmake.join(format!("{}-toolchain.cmake", target));
@@ -554,13 +554,15 @@ set(CMAKE_RANLIB {ranlib})"#,
     }
 }
 
-fn cache_dir() -> Result<PathBuf> {
-    let zig_linker_dir = dirs::cache_dir()
+fn cache_dir() -> PathBuf {
+    env::var("CARGO_ZIGBUILD_CACHE_DIR")
+        .ok()
+        .map(|s| s.into())
+        .or_else(|| dirs::cache_dir())
         // If the really is no cache dir, cwd will also do
         .unwrap_or_else(|| env::current_dir().expect("Failed to get current dir"))
         .join(env!("CARGO_PKG_NAME"))
-        .join(env!("CARGO_PKG_VERSION"));
-    Ok(zig_linker_dir)
+        .join(env!("CARGO_PKG_VERSION"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -668,7 +670,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         _ => bail!(format!("unsupported target '{}'", rust_target)),
     };
 
-    let zig_linker_dir = cache_dir()?;
+    let zig_linker_dir = cache_dir();
     fs::create_dir_all(&zig_linker_dir)?;
 
     let fcntl_map = zig_linker_dir.join("fcntl.map");
