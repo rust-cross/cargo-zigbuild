@@ -432,6 +432,10 @@ impl Zig {
                     target_dir.join(target)
                 } else {
                     let manifest_path = manifest_path.unwrap_or_else(|| Path::new("Cargo.toml"));
+                    if !manifest_path.exists() {
+                        // cargo install doesn't pass a manifest path so `Cargo.toml` in cwd may not exist
+                        continue;
+                    }
                     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
                     metadata_cmd.manifest_path(manifest_path);
                     let metadata = metadata_cmd.exec()?;
