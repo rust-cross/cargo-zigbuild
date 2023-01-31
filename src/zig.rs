@@ -321,6 +321,8 @@ impl Zig {
     }
 
     pub(crate) fn apply_command_env(
+        manifest_path: Option<&Path>,
+        release: bool,
         cargo: &cargo_options::CommonOptions,
         cmd: &mut Command,
         enable_zig_ar: bool,
@@ -376,7 +378,7 @@ impl Zig {
                 add_env(format!("AR_{}", env_target), &zig_wrapper.ar);
             }
 
-            Self::setup_os_deps(cargo)?;
+            Self::setup_os_deps(manifest_path, release, cargo)?;
 
             let cmake_toolchain_file_env = format!("CMAKE_TOOLCHAIN_FILE_{}", env_target);
             if env::var_os(&cmake_toolchain_file_env).is_none()
@@ -419,16 +421,17 @@ impl Zig {
         Ok(())
     }
 
-    fn setup_os_deps(cargo: &cargo_options::CommonOptions) -> Result<()> {
+    fn setup_os_deps(
+        manifest_path: Option<&Path>,
+        release: bool,
+        cargo: &cargo_options::CommonOptions,
+    ) -> Result<()> {
         for target in &cargo.target {
             if target.contains("apple") {
                 let target_dir = if let Some(target_dir) = cargo.target_dir.clone() {
                     target_dir.join(target)
                 } else {
-                    let manifest_path = cargo
-                        .manifest_path
-                        .as_deref()
-                        .unwrap_or_else(|| Path::new("Cargo.toml"));
+                    let manifest_path = manifest_path.unwrap_or_else(|| Path::new("Cargo.toml"));
                     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
                     metadata_cmd.manifest_path(manifest_path);
                     let metadata = metadata_cmd.exec()?;
@@ -439,7 +442,7 @@ impl Zig {
                     Some("release" | "bench") => "release",
                     Some(profile) => profile,
                     None => {
-                        if cargo.release {
+                        if release {
                             "release"
                         } else {
                             "debug"

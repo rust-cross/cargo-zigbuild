@@ -1,5 +1,4 @@
 use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
 use std::process::{self, Command};
 
 use anyhow::{Context, Result};
@@ -7,16 +6,15 @@ use clap::Parser;
 
 use crate::zig::Zig;
 
-/// Compile a local package and all of its dependencies
-/// using zig as the linker
+/// Install a Rust binary using zig as the linker. Default location is $HOME/.cargo/bin
 #[derive(Clone, Debug, Default, Parser)]
 #[command(
-    after_help = "Run `cargo help build` for more detailed information.",
+    after_help = "Run `cargo help install` for more detailed information.",
     display_order = 1
 )]
-pub struct Build {
+pub struct Install {
     #[command(flatten)]
-    pub cargo: cargo_options::Build,
+    pub cargo: cargo_options::Install,
 
     /// Disable zig linker
     #[arg(skip)]
@@ -27,20 +25,19 @@ pub struct Build {
     pub enable_zig_ar: bool,
 }
 
-impl Build {
-    /// Create a new build from manifest path
-    #[allow(clippy::field_reassign_with_default)]
-    pub fn new(manifest_path: Option<PathBuf>) -> Self {
-        let mut build = Self::default();
-        build.manifest_path = manifest_path;
-        build
+impl Install {
+    /// Create a new install
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Execute `cargo build` command with zig as the linker
+    /// Execute `cargo install` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
         let mut build = self.build_command()?;
-        let mut child = build.spawn().context("Failed to run cargo build")?;
-        let status = child.wait().expect("Failed to wait on cargo build process");
+        let mut child = build.spawn().context("Failed to run cargo install")?;
+        let status = child
+            .wait()
+            .expect("Failed to wait on cargo install process");
         if !status.success() {
             process::exit(status.code().unwrap_or(1));
         }
@@ -49,37 +46,37 @@ impl Build {
 
     /// Generate cargo subcommand
     pub fn build_command(&self) -> Result<Command> {
-        let mut build = self.cargo.command();
+        let mut install = self.cargo.command();
         if !self.disable_zig_linker {
             Zig::apply_command_env(
-                self.manifest_path.as_deref(),
-                self.release,
+                None,
+                !self.debug,
                 &self.cargo.common,
-                &mut build,
+                &mut install,
                 self.enable_zig_ar,
             )?;
         }
 
-        Ok(build)
+        Ok(install)
     }
 }
 
-impl Deref for Build {
-    type Target = cargo_options::Build;
+impl Deref for Install {
+    type Target = cargo_options::Install;
 
     fn deref(&self) -> &Self::Target {
         &self.cargo
     }
 }
 
-impl DerefMut for Build {
+impl DerefMut for Install {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cargo
     }
 }
 
-impl From<cargo_options::Build> for Build {
-    fn from(cargo: cargo_options::Build) -> Self {
+impl From<cargo_options::Install> for Install {
+    fn from(cargo: cargo_options::Install) -> Self {
         Self {
             cargo,
             ..Default::default()
