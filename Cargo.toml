@@ -13,7 +13,7 @@ rust-version = "1.61"
 
 [dependencies]
 anyhow = "1.0.53"
-cargo-options = "0.5.3"
+cargo-options = "0.6.0"
 cargo_metadata = "0.15.2"
 clap = { version = "4.0.0", features = ["derive", "env", "wrap_help"] }
 dirs = "4.0.0"

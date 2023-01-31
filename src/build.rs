@@ -51,7 +51,13 @@ impl Build {
     pub fn build_command(&self) -> Result<Command> {
         let mut build = self.cargo.command();
         if !self.disable_zig_linker {
-            Zig::apply_command_env(&self.cargo.common, &mut build, self.enable_zig_ar)?;
+            Zig::apply_command_env(
+                self.manifest_path.as_deref(),
+                self.release,
+                &self.cargo.common,
+                &mut build,
+                self.enable_zig_ar,
+            )?;
         }
 
         Ok(build)
