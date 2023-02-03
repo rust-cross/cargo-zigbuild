@@ -58,8 +58,10 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
 
 1. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
-   Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`
-2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485)
+   Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`, workaround by using `-mcpu=generic` and
+   explictly passing target features in [#58](https://github.com/rust-cross/cargo-zigbuild/pull/58)
+2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485): workaround by
+   using linker script in [#14](https://github.com/rust-cross/cargo-zigbuild/pull/14)
 
 ## License
 
