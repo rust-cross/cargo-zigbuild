@@ -62,6 +62,8 @@ Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
    explictly passing target features in [#58](https://github.com/rust-cross/cargo-zigbuild/pull/58)
 2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485): workaround by
    using linker script in [#14](https://github.com/rust-cross/cargo-zigbuild/pull/14)
+3. [ability to link against darwin frameworks (such as CoreFoundation) when cross compiling](https://github.com/ziglang/zig/issues/1349):
+   Set the `SDKROOT` environment variable to a macOS SDK path to workaround it
 
 ## License
 
