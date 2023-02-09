@@ -59,7 +59,7 @@ Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
 
 1. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
    Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`, workaround by using `-mcpu=generic` and
-   explictly passing target features in [#58](https://github.com/rust-cross/cargo-zigbuild/pull/58)
+   explicitly passing target features in [#58](https://github.com/rust-cross/cargo-zigbuild/pull/58)
 2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485): workaround by
    using linker script in [#14](https://github.com/rust-cross/cargo-zigbuild/pull/14)
 3. [ability to link against darwin frameworks (such as CoreFoundation) when cross compiling](https://github.com/ziglang/zig/issues/1349):
