@@ -50,7 +50,7 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 
 ### macOS universal2 target
 
-`cargo zigbuild` supports a special `universal2-apple-darwin` target for building macOS universal2 binaries/libraries.
+`cargo zigbuild` supports a special `universal2-apple-darwin` target for building macOS universal2 binaries/libraries on Rust 1.64.0 and later.
 
 ```bash
 rustup target add x86_64-apple-darwin
