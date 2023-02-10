@@ -3,6 +3,9 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -29,11 +32,11 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        toolchain: [1.61.0, stable, nightly]
+        toolchain: [1.64.0, stable, nightly]
         zig: [0.10.1, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.61.0
+          - toolchain: 1.64.0
             zig: master
     steps:
       - uses: actions/checkout@v3
@@ -64,9 +67,11 @@ jobs:
       - run: cargo build
       - name: macOS - Test build
         run: |
+          rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin --release
+          cargo run zigbuild --target universal2-apple-darwin
       - name: macOS - Test build with SDKROOT
         if: matrix.os == 'ubuntu-latest'
         env:
