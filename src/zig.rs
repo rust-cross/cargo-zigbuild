@@ -224,7 +224,7 @@ impl Zig {
             .arg(cmd)
             .args(new_cmd_args)
             .spawn()
-            .with_context(|| format!("Failed to run `zig {}`", cmd))?;
+            .with_context(|| format!("Failed to run `zig {cmd}`"))?;
         let status = child.wait().expect("Failed to wait on zig child process");
         if !status.success() {
             process::exit(status.code().unwrap_or(1));
@@ -238,7 +238,7 @@ impl Zig {
             .arg(cmd)
             .args(cmd_args)
             .spawn()
-            .with_context(|| format!("Failed to run `zig {}`", cmd))?;
+            .with_context(|| format!("Failed to run `zig {cmd}`"))?;
         let status = child.wait().expect("Failed to wait on zig child process");
         if !status.success() {
             process::exit(status.code().unwrap_or(1));
@@ -346,8 +346,8 @@ impl Zig {
                 };
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
                 let zig_cxx = zig_wrapper.cxx.to_slash_lossy();
-                add_env(format!("CC_{}", env_target), &*zig_cc);
-                add_env(format!("CXX_{}", env_target), &*zig_cxx);
+                add_env(format!("CC_{env_target}"), &*zig_cc);
+                add_env(format!("CXX_{env_target}"), &*zig_cxx);
                 add_env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                     &*zig_cc,
@@ -358,8 +358,8 @@ impl Zig {
                         cmd.env(name, value);
                     }
                 };
-                add_env(format!("CC_{}", env_target), &zig_wrapper.cc);
-                add_env(format!("CXX_{}", env_target), &zig_wrapper.cxx);
+                add_env(format!("CC_{env_target}"), &zig_wrapper.cc);
+                add_env(format!("CXX_{env_target}"), &zig_wrapper.cxx);
                 add_env(
                     format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                     &zig_wrapper.cc,
@@ -371,18 +371,18 @@ impl Zig {
                     cmd.env(name, value);
                 }
             };
-            add_env(format!("RANLIB_{}", env_target), &zig_wrapper.ranlib);
+            add_env(format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
-                add_env(format!("AR_{}", env_target), &zig_wrapper.ar);
+                add_env(format!("AR_{env_target}"), &zig_wrapper.ar);
             }
 
             Self::setup_os_deps(manifest_path, release, cargo)?;
 
-            let cmake_toolchain_file_env = format!("CMAKE_TOOLCHAIN_FILE_{}", env_target);
+            let cmake_toolchain_file_env = format!("CMAKE_TOOLCHAIN_FILE_{env_target}");
             if env::var_os(&cmake_toolchain_file_env).is_none()
-                && env::var_os(format!("CMAKE_TOOLCHAIN_FILE_{}", parsed_target)).is_none()
+                && env::var_os(format!("CMAKE_TOOLCHAIN_FILE_{parsed_target}")).is_none()
                 && env::var_os("TARGET_CMAKE_TOOLCHAIN_FILE").is_none()
                 && env::var_os("CMAKE_TOOLCHAIN_FILE").is_none()
             {
@@ -482,7 +482,7 @@ impl Zig {
         let cmake = cache_dir().join("cmake");
         fs::create_dir_all(&cmake)?;
 
-        let toolchain_file = cmake.join(format!("{}-toolchain.cmake", target));
+        let toolchain_file = cmake.join(format!("{target}-toolchain.cmake"));
         let triple: Triple = target.parse()?;
         let os = triple.operating_system.to_string();
         let arch = triple.architecture.to_string();
@@ -565,7 +565,7 @@ fn cache_dir() -> PathBuf {
     env::var("CARGO_ZIGBUILD_CACHE_DIR")
         .ok()
         .map(|s| s.into())
-        .or_else(|| dirs::cache_dir())
+        .or_else(dirs::cache_dir)
         // If the really is no cache dir, cwd will also do
         .unwrap_or_else(|| env::current_dir().expect("Failed to get current dir"))
         .join(env!("CARGO_PKG_NAME"))
@@ -612,11 +612,11 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         {
             bail!("Malformed zig target abi suffix.")
         }
-        format!(".{}", abi_suffix)
+        format!(".{abi_suffix}")
     };
     let triple: Triple = rust_target
         .parse()
-        .with_context(|| format!("Unsupported Rust target '{}'", rust_target))?;
+        .with_context(|| format!("Unsupported Rust target '{rust_target}'"))?;
     let arch = triple.architecture.to_string();
     let target_env = match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
@@ -625,8 +625,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let file_target = target.trim_end_matches('.');
-    let zig_cc = format!("zigcc-{}.{}", file_target, file_ext);
-    let zig_cxx = format!("zigcxx-{}.{}", file_target, file_ext);
+    let zig_cc = format!("zigcc-{file_target}.{file_ext}");
+    let zig_cxx = format!("zigcxx-{file_target}.{file_ext}");
     let cc_args = "-g"; // prevent stripping
     let mut cc_args = match triple.operating_system {
         OperatingSystem::Linux => {
@@ -649,19 +649,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 "s390x" => ("s390x", "-mcpu=z10-vector"),
                 _ => (arch.as_str(), ""),
             };
-            format!(
-                "-target {}-linux-{}{} {} {}",
-                zig_arch, target_env, abi_suffix, zig_cpu, cc_args,
-            )
+            format!("-target {zig_arch}-linux-{target_env}{abi_suffix} {zig_cpu} {cc_args}",)
         }
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
             let zig_version = Zig::zig_version()?;
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
             if zig_version > semver::Version::new(0, 9, 1) {
-                format!("-target {}-macos-none{} {}", arch, abi_suffix, cc_args)
+                format!("-target {arch}-macos-none{abi_suffix} {cc_args}")
             } else {
-                format!("-target {}-macos-gnu{} {}", arch, abi_suffix, cc_args)
+                format!("-target {arch}-macos-gnu{abi_suffix} {cc_args}")
             }
         }
         OperatingSystem::Windows { .. } => {
@@ -669,12 +666,9 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 "i686" => "i386",
                 arch => arch,
             };
-            format!(
-                "-target {}-windows-{}{} {}",
-                zig_arch, target_env, abi_suffix, cc_args,
-            )
+            format!("-target {zig_arch}-windows-{target_env}{abi_suffix} {cc_args}",)
         }
-        _ => bail!(format!("unsupported target '{}'", rust_target)),
+        _ => bail!(format!("unsupported target '{rust_target}'")),
     };
 
     let zig_linker_dir = cache_dir();
@@ -721,13 +715,13 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
 
     let zig_cc = zig_linker_dir.join(zig_cc);
     let zig_cxx = zig_linker_dir.join(zig_cxx);
-    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{}", file_ext));
+    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{file_ext}"));
     write_linker_wrapper(&zig_cc, "cc", &cc_args)?;
     write_linker_wrapper(&zig_cxx, "c++", &cc_args)?;
     write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-    let zig_ar = zig_linker_dir.join(format!("ar{}", exe_ext));
+    let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
     symlink_wrapper(&zig_ar)?;
 
     Ok(ZigWrapper {

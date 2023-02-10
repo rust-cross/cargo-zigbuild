@@ -48,6 +48,20 @@ to compile for glibc 2.17 with the `aarch64-unknown-linux-gnu` target:
 cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 ```
 
+### macOS universal2 target
+
+`cargo zigbuild` supports a special `universal2-apple-darwin` target for building macOS universal2 binaries/libraries.
+
+```bash
+rustup target add x86_64-apple-darwin
+rustup target add aarch64-apple-darwin
+cargo zigbuild --target universal2-apple-darwin
+```
+
+> **Note**
+>
+> Note that Cargo `--message-format` option doesn't work with universal2 target currently.
+
 ## Caveats
 
 1. Currently only Linux, macOS and Windows gnu targets are supported,

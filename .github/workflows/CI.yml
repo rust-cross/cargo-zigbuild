@@ -64,9 +64,11 @@ jobs:
       - run: cargo build
       - name: macOS - Test build
         run: |
+          rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin --release
+          cargo run zigbuild --target universal2-apple-darwin
       - name: macOS - Test build with SDKROOT
         if: matrix.os == 'ubuntu-latest'
         env:
