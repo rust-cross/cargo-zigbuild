@@ -38,27 +38,21 @@ jobs:
           # Only test MSRV with zig stable version
           - toolchain: 1.64.0
             zig: master
+    env:
+      RUST_BACKTRACE: "1"
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     steps:
       - uses: actions/checkout@v3
-      - name: Install GNU tar
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install gnu-tar
-          echo "/usr/local/opt/gnu-tar/libexec/gnubin" >> $GITHUB_PATH
+      - name: setup sccache
+        # Just for test, come back to upstream after released
+        uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
+        with:
+          version: "v0.4.0-pre.6"
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
           toolchain: ${{ matrix.toolchain }}
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v1
-      - name: Cache test crates cargo build
-        uses: actions/cache@v3
-        with:
-          path: |
-            tests/hello-tls/target
-            tests/hello-windows/target
-            tests/libhello/target
-          key: test-crates-${{ runner.os }}-${{ steps.rustup.outputs.cachekey }}-${{ hashFiles('tests/*/Cargo.lock') }}
       - name: Install zig
         uses: korandoru/setup-zig@v1
         with:
