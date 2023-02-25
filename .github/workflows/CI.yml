@@ -59,6 +59,11 @@ jobs:
           zig-version: ${{ matrix.zig }}
       - run: zig version
       - run: cargo build
+      - name: Bindgen
+        run: |
+          git clone --recurse-submodules https://github.com/gyscos/zstd-rs.git tests/zstd-rs
+          rustup target add aarch64-unknown-linux-gnu
+          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
       - name: macOS - Test build
         run: |
           rustup target add x86_64-apple-darwin
