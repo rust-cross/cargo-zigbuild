@@ -429,12 +429,10 @@ impl Zig {
                             format!("--sysroot={}", libc.join("musl").display()),
                         );
                     } else if raw_target.contains("gnu") {
-                        let bindgen_args = format!(
-                            "--sysroot={} -I{}",
-                            libc.join("glibc").display(),
-                            libc.join("include").join("generic-glibc").display()
+                        cmd.env(
+                            bindgen_env,
+                            format!("--sysroot={}", libc.join("glibc").display()),
                         );
-                        cmd.env(bindgen_env, bindgen_args);
                     }
                 }
             }
