@@ -94,6 +94,7 @@ impl Zig {
                 return None;
             }
             if is_windows_gnu {
+                #[allow(clippy::if_same_then_else)]
                 if arg == "-lgcc_eh" {
                     // zig doesn't provide gcc_eh alternative
                     // We use libc++ to replace it on windows gnu targets
