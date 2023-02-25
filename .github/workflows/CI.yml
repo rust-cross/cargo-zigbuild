@@ -62,21 +62,22 @@ jobs:
       - name: Install Rust targets
         run: |
           rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-gnu
-      - name: bindgen
+      - name: Test bindgen
         shell: bash
         run: |
           set -e
           git clone --recurse-submodules https://github.com/gyscos/zstd-rs.git tests/zstd-rs
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
+      - name: macOS - Test bindgen
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: macOS - Test build
         run: |
           cargo run zigbuild --target aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin --release
           cargo run zigbuild --target universal2-apple-darwin
-
-          # bindgen
-          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: macOS - Test build with SDKROOT
         if: matrix.os == 'ubuntu-latest'
         env:
