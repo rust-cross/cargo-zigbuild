@@ -164,6 +164,7 @@ jobs:
 
   docker:
     name: Build Docker Image
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: Docker Hub
     steps:
