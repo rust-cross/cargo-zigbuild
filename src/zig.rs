@@ -423,11 +423,11 @@ impl Zig {
                 cmd.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
             }
 
-            // bindgen support (Linux only)
+            // bindgen support
             if let Ok(lib_dir) = Zig::lib_dir() {
+                let bindgen_env = format!("BINDGEN_EXTRA_CLANG_ARGS_{}", env_target);
+                let libc = lib_dir.join("libc");
                 if raw_target.contains("linux") {
-                    let libc = lib_dir.join("libc");
-                    let bindgen_env = format!("BINDGEN_EXTRA_CLANG_ARGS_{}", env_target);
                     if raw_target.contains("musl") {
                         cmd.env(
                             bindgen_env,
@@ -438,6 +438,15 @@ impl Zig {
                             bindgen_env,
                             format!("--sysroot={}", libc.join("glibc").display()),
                         );
+                    }
+                } else if raw_target.contains("windows-gnu") {
+                    cmd.env(
+                        bindgen_env,
+                        format!("--sysroot={}", libc.join("mingw").display()),
+                    );
+                } else if raw_target.contains("apple-darwin") {
+                    if let Some(sdkroot) = Self::macos_sdk_root() {
+                        cmd.env(bindgen_env, format!("--sysroot={}", sdkroot.display()));
                     }
                 }
             }

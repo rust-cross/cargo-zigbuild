@@ -59,15 +59,22 @@ jobs:
           zig-version: ${{ matrix.zig }}
       - run: zig version
       - run: cargo build
-      - name: Bindgen
+      - name: Install Rust targets
         run: |
+          rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-gnu
+      - name: Test bindgen
+        shell: bash
+        run: |
+          set -e
           git clone --recurse-submodules https://github.com/gyscos/zstd-rs.git tests/zstd-rs
-          rustup target add aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
+          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
+      - name: macOS - Test bindgen
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: macOS - Test build
         run: |
-          rustup target add x86_64-apple-darwin
-          rustup target add aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin
           cargo run zigbuild --target aarch64-apple-darwin --release
           cargo run zigbuild --target universal2-apple-darwin
@@ -76,6 +83,7 @@ jobs:
         env:
           SDK: MacOSX11.3.sdk
         run: |
+          set -e
           curl -sqL https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/$SDK.tar.xz | tar -Jx
           export SDKROOT=$PWD/$SDK
 
@@ -101,7 +109,6 @@ jobs:
             ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
       - name: Linux - Test glibc build
         run: |
-          rustup target add aarch64-unknown-linux-gnu
           rustup target add arm-unknown-linux-gnueabihf
           rustup target add armv7-unknown-linux-gnueabihf
           cargo run zigbuild --target aarch64-unknown-linux-gnu
@@ -136,13 +143,11 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
       - name: Windows - Test gnu build
         run: |
-          rustup target add x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
       - name: Windows - Test build curl
         if: matrix.os == 'windows-latest'
         run: |
-          rustup target add aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml --features curl
       - name: Windows - Test run
         if: matrix.os == 'windows-latest'
