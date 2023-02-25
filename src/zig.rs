@@ -81,7 +81,7 @@ impl Zig {
 
         let rustc_ver = rustc_version::version()?;
 
-        let filter_link_arg = |arg: &str| {
+        let filter_linker_arg = |arg: &str| {
             if arg == "-lgcc_s" {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
@@ -99,6 +99,10 @@ impl Zig {
                     // We use libc++ to replace it on windows gnu targets
                     return Some("-lc++".to_string());
                 } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
+                    return None;
+                } else if arg == "-Wl,--disable-auto-image-base" {
+                    // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
+                    // zig doesn't support --disable-auto-image-base
                     return None;
                 }
             }
@@ -173,7 +177,7 @@ impl Zig {
                     })?
                 };
                 let mut link_args: Vec<_> =
-                    content.split('\n').filter_map(filter_link_arg).collect();
+                    content.split('\n').filter_map(filter_linker_arg).collect();
                 if has_undefined_dynamic_lookup(&link_args) {
                     link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
                 }
@@ -192,7 +196,7 @@ impl Zig {
                 }
                 Some(arg.to_string())
             } else {
-                filter_link_arg(arg)
+                filter_linker_arg(arg)
             };
             if let Some(arg) = arg {
                 new_cmd_args.push(arg);
