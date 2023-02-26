@@ -77,7 +77,6 @@ impl Zig {
         let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
         let is_i386 = target.map(|x| x.starts_with("i386")).unwrap_or_default();
         let is_riscv64 = target.map(|x| x.starts_with("riscv64")).unwrap_or_default();
-        let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
 
@@ -205,25 +204,6 @@ impl Zig {
         }
         if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
-        }
-
-        if is_macos {
-            if let Some(sdkroot) = Self::macos_sdk_root() {
-                let sdkroot = Path::new(&sdkroot);
-                new_cmd_args.extend_from_slice(&[
-                    format!("-I{}", sdkroot.join("usr").join("include").display()),
-                    format!("-L{}", sdkroot.join("usr").join("lib").display()),
-                    format!(
-                        "-F{}",
-                        sdkroot
-                            .join("System")
-                            .join("Library")
-                            .join("Frameworks")
-                            .display()
-                    ),
-                    "-DTARGET_OS_IPHONE=0".to_string(),
-                ]);
-            }
         }
 
         let mut child = Self::command()?
@@ -403,15 +383,6 @@ impl Zig {
                 cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
             }
 
-            if raw_target.contains("apple-darwin") {
-                if let Some(sdkroot) = Self::macos_sdk_root() {
-                    if env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none() {
-                        // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
-                        cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
-                    }
-                }
-            }
-
             // Enable unstable `target-applies-to-host` option automatically
             // when target is the same as host but may have specified glibc version
             if host_target == parsed_target {
@@ -445,21 +416,6 @@ impl Zig {
                         bindgen_env,
                         format!("--sysroot={}", libc.join("mingw").display()),
                     );
-                } else if raw_target.contains("apple-darwin") {
-                    if let Some(sdkroot) = Self::macos_sdk_root() {
-                        cmd.env(
-                            bindgen_env,
-                            format!(
-                                "-I{} -F{} -DTARGET_OS_IPHONE=0",
-                                sdkroot.join("usr").join("include").display(),
-                                sdkroot
-                                    .join("System")
-                                    .join("Library")
-                                    .join("Frameworks")
-                                    .display()
-                            ),
-                        );
-                    }
                 }
             }
         }
@@ -566,43 +522,6 @@ set(CMAKE_RANLIB {ranlib})"#,
         }
         fs::write(&toolchain_file, content)?;
         Ok(toolchain_file)
-    }
-
-    #[cfg(target_os = "macos")]
-    fn macos_sdk_root() -> Option<PathBuf> {
-        match env::var_os("SDKROOT") {
-            Some(sdkroot) => {
-                if !sdkroot.is_empty() {
-                    Some(sdkroot.into())
-                } else {
-                    None
-                }
-            }
-            None => {
-                let output = Command::new("xcrun")
-                    .args(["--sdk", "macosx", "--show-sdk-path"])
-                    .output();
-                if let Ok(output) = output {
-                    if output.status.success() {
-                        if let Ok(stdout) = String::from_utf8(output.stdout) {
-                            let stdout = stdout.trim();
-                            if !stdout.is_empty() {
-                                return Some(stdout.into());
-                            }
-                        }
-                    }
-                }
-                None
-            }
-        }
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    fn macos_sdk_root() -> Option<PathBuf> {
-        match env::var_os("SDKROOT") {
-            Some(sdkroot) if !sdkroot.is_empty() => Some(sdkroot.into()),
-            _ => None,
-        }
     }
 }
 
