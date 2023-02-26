@@ -221,6 +221,7 @@ impl Zig {
                             .join("Frameworks")
                             .display()
                     ),
+                    "-DTARGET_OS_IPHONE=0".to_string(),
                 ]);
             }
         }
@@ -449,7 +450,7 @@ impl Zig {
                         cmd.env(
                             bindgen_env,
                             format!(
-                                "--sysroot={} -I/usr/include -F/System/Library/Frameworks -L/usr/lib",
+                                "--sysroot={} -I/usr/include -F/System/Library/Frameworks -L/usr/lib -DTARGET_OS_IPHONE=0",
                                 sdkroot.display()
                             ),
                         );
