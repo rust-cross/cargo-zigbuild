@@ -446,7 +446,13 @@ impl Zig {
                     );
                 } else if raw_target.contains("apple-darwin") {
                     if let Some(sdkroot) = Self::macos_sdk_root() {
-                        cmd.env(bindgen_env, format!("--sysroot={}", sdkroot.display()));
+                        cmd.env(
+                            bindgen_env,
+                            format!(
+                                "--sysroot={} -I/usr/include -F/System/Library/Frameworks -L/usr/lib",
+                                sdkroot.display()
+                            ),
+                        );
                     }
                 }
             }
