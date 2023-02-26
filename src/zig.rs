@@ -450,8 +450,13 @@ impl Zig {
                         cmd.env(
                             bindgen_env,
                             format!(
-                                "--sysroot={} -I/usr/include -F/System/Library/Frameworks -L/usr/lib -DTARGET_OS_IPHONE=0",
-                                sdkroot.display()
+                                "-I{} -F{} -DTARGET_OS_IPHONE=0",
+                                sdkroot.join("usr").join("include").display(),
+                                sdkroot
+                                    .join("System")
+                                    .join("Library")
+                                    .join("Frameworks")
+                                    .display()
                             ),
                         );
                     }
