@@ -69,9 +69,6 @@ jobs:
           git clone --recurse-submodules https://github.com/gyscos/zstd-rs.git tests/zstd-rs
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
-      - name: macOS - Test bindgen
-        if: matrix.os == 'macos-latest'
-        run: |
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: macOS - Test build
         run: |

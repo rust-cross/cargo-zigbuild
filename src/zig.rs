@@ -459,6 +459,11 @@ impl Zig {
                                     .display()
                             ),
                         );
+                    } else {
+                        cmd.env(
+                            bindgen_env,
+                            format!("--sysroot={}", libc.join("darwin").display()),
+                        );
                     }
                 }
             }
