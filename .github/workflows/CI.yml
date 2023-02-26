@@ -89,6 +89,9 @@ jobs:
 
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-tls/Cargo.toml
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-rustls/Cargo.toml
+
+          # bindgen
+          cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: Linux - Test x86_64 build
         if: matrix.os == 'ubuntu-latest'
         run: |

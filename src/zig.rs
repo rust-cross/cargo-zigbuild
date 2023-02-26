@@ -221,6 +221,7 @@ impl Zig {
                             .join("Frameworks")
                             .display()
                     ),
+                    "-DTARGET_OS_IPHONE=0".to_string(),
                 ]);
             }
         }
@@ -446,7 +447,18 @@ impl Zig {
                     );
                 } else if raw_target.contains("apple-darwin") {
                     if let Some(sdkroot) = Self::macos_sdk_root() {
-                        cmd.env(bindgen_env, format!("--sysroot={}", sdkroot.display()));
+                        cmd.env(
+                            bindgen_env,
+                            format!(
+                                "-I{} -F{} -DTARGET_OS_IPHONE=0",
+                                sdkroot.join("usr").join("include").display(),
+                                sdkroot
+                                    .join("System")
+                                    .join("Library")
+                                    .join("Frameworks")
+                                    .display()
+                            ),
+                        );
                     }
                 }
             }
