@@ -446,20 +446,10 @@ impl Zig {
                         format!("--sysroot={}", libc.join("mingw").display()),
                     );
                 } else if raw_target.contains("apple-darwin") {
-                    if let Some(sdkroot) = Self::macos_sdk_root() {
-                        cmd.env(
-                            bindgen_env,
-                            format!(
-                                "-I{} -F{} -DTARGET_OS_IPHONE=0",
-                                sdkroot.join("usr").join("include").display(),
-                                sdkroot
-                                    .join("System")
-                                    .join("Library")
-                                    .join("Frameworks")
-                                    .display()
-                            ),
-                        );
-                    }
+                    cmd.env(
+                        bindgen_env,
+                        format!("--sysroot={}", libc.join("darwin").display()),
+                    );
                 }
             }
         }
