@@ -18,12 +18,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
       - name: Build
         uses: PyO3/maturin-action@v1
         with:
           args: --release --out dist --strip --universal2
+          sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -70,13 +69,12 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v2
       - uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
       - name: Build
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --strip
+          sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -124,10 +122,6 @@ jobs:
         CFLAGS_armv7_unknown_linux_musleabihf: '-mfpu=vfpv3-d16'
     steps:
       - uses: actions/checkout@v3
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.platform.target }}
       - name: Build
         uses: PyO3/maturin-action@main
         with:
@@ -135,6 +129,7 @@ jobs:
           manylinux: auto
           container: off
           args: --release -o dist --strip
+          sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
