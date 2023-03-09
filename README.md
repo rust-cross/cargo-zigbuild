@@ -78,6 +78,8 @@ Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
    using linker script in [#14](https://github.com/rust-cross/cargo-zigbuild/pull/14)
 3. [ability to link against darwin frameworks (such as CoreFoundation) when cross compiling](https://github.com/ziglang/zig/issues/1349):
    Set the `SDKROOT` environment variable to a macOS SDK path to workaround it
+4. [zig misses some `compiler_rt` functions](https://github.com/ziglang/zig/issues/1290) that may lead to undefined symbol error for certain
+   targets.
 
 ## License
 
