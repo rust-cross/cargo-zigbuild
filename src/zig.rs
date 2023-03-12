@@ -101,9 +101,11 @@ impl Zig {
                     return Some("-lc++".to_string());
                 } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
                     return None;
-                } else if arg == "-Wl,--disable-auto-image-base" {
+                } else if arg == "-Wl,--disable-auto-image-base"
+                    || arg == "-Wl,--large-address-aware"
+                {
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
-                    // zig doesn't support --disable-auto-image-base
+                    // zig doesn't support --disable-auto-image-base, --large-address-aware
                     return None;
                 }
             }
@@ -713,7 +715,14 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         }
         OperatingSystem::Windows { .. } => {
             let zig_arch = match arch.as_str() {
-                "i686" => "i386",
+                "i686" => {
+                    let zig_version = Zig::zig_version()?;
+                    if zig_version.major == 0 && zig_version.minor >= 11 {
+                        "x86"
+                    } else {
+                        "i386"
+                    }
+                }
                 arch => arch,
             };
             format!("-target {zig_arch}-windows-{target_env}{abi_suffix} {cc_args}",)

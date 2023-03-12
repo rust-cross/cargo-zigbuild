@@ -61,7 +61,7 @@ jobs:
       - run: cargo build
       - name: Install Rust targets
         run: |
-          rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-gnu
+          rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-gnu i686-pc-windows-gnu
       - name: Test bindgen
         shell: bash
         run: |
@@ -145,6 +145,8 @@ jobs:
         run: |
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
+          cargo run zigbuild --target i686-pc-windows-gnu
+          cargo run zigbuild --target i686-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
       - name: Windows - Test build curl
         if: matrix.os == 'windows-latest'
         run: |
