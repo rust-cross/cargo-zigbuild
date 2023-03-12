@@ -48,7 +48,7 @@ jobs:
         # Just for test, come back to upstream after released
         uses: mozilla-actions/sccache-action@v0.0.1
         with:
-          version: "v0.4.0-pre.6"
+          version: "v0.4.0-pre.10"
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
