@@ -103,7 +103,6 @@ impl Zig {
                     return None;
                 } else if arg == "-Wl,--disable-auto-image-base"
                     || arg == "-Wl,--large-address-aware"
-                    || arg == "-Wl,--no-undefined-version"
                 {
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
