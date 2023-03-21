@@ -840,10 +840,10 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     } else {
         env::current_exe()?
     };
-    writeln!(&mut custom_linker_file, "#!/usr/bin/env sh")?;
+    writeln!(&mut custom_linker_file, "#!/bin/sh")?;
     writeln!(
         &mut custom_linker_file,
-        "{} zig {} -- {} $@",
+        "exec {} zig {} -- {} \"$@\"",
         current_exe.display(),
         command,
         args
