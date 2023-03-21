@@ -16,7 +16,7 @@ anyhow = "1.0.53"
 cargo-options = "0.6.0"
 cargo_metadata = "0.15.2"
 clap = { version = "4.0.0", features = ["derive", "env", "wrap_help"] }
-dirs = "5.0.0"
+dirs = "4.0.0"
 fat-macho = { version = "0.4.6", default-features = false, optional = true }
 fs-err = "2.6.0"
 path-slash = "0.2.0"
