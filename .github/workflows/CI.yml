@@ -45,10 +45,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: setup sccache
-        # Just for test, come back to upstream after released
         uses: mozilla-actions/sccache-action@v0.0.1
         with:
-          version: "v0.4.0-pre.11"
+          version: "v0.4.0"
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
