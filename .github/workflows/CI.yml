@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.1
+        uses: mozilla-actions/sccache-action@v0.0.3
         with:
           version: "v0.4.0"
       - uses: dtolnay/rust-toolchain@master
