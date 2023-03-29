@@ -59,8 +59,17 @@ jobs:
       - run: zig version
       - run: cargo build
       - name: Install Rust targets
+        shell: bash
         run: |
-          rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-gnu i686-pc-windows-gnu
+          rustup target add aarch64-unknown-linux-gnu \
+            x86_64-unknown-linux-gnu \
+            i686-unknown-linux-gnu \
+            arm-unknown-linux-gnueabihf \
+            armv7-unknown-linux-gnueabihf \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin \
+            x86_64-pc-windows-gnu \
+            i686-pc-windows-gnu
       - name: Test bindgen
         shell: bash
         run: |
@@ -108,8 +117,6 @@ jobs:
             ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
       - name: Linux - Test glibc build
         run: |
-          rustup target add arm-unknown-linux-gnueabihf
-          rustup target add armv7-unknown-linux-gnueabihf
           cargo run zigbuild --target aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
 
@@ -117,6 +124,7 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
           cargo run zigbuild --target armv7-unknown-linux-gnueabihf --manifest-path tests/hello-rustls/Cargo.toml
           cargo run zigbuild --target arm-unknown-linux-gnueabihf --manifest-path tests/hello-rustls/Cargo.toml
+          cargo run zigbuild --target i686-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
 
           # Test building shared library
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/libhello/Cargo.toml

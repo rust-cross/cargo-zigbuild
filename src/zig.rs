@@ -710,8 +710,20 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 },
                 "armv5te" => ("arm", "-mcpu=generic+soft_float+strict_align"),
                 "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
-                "i586" => ("i386", "-mcpu=pentium"),
-                "i686" => ("i386", "-mcpu=pentium4"),
+                arch_str @ ("i586" | "i686") => {
+                    let cpu_arg = if arch_str == "i586" {
+                        "-mcpu=pentium"
+                    } else {
+                        "-mcpu=pentium4"
+                    };
+                    let zig_version = Zig::zig_version()?;
+                    let zig_arch = if zig_version.major == 0 && zig_version.minor >= 11 {
+                        "x86"
+                    } else {
+                        "i386"
+                    };
+                    (zig_arch, cpu_arg)
+                }
                 "riscv64gc" => ("riscv64", "-mcpu=generic_rv64+m+a+f+d+c"),
                 "s390x" => ("s390x", "-mcpu=z10-vector"),
                 _ => (arch.as_str(), ""),
