@@ -102,11 +102,13 @@ impl Zig {
                 } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
                     return None;
                 } else if arg == "-Wl,--disable-auto-image-base"
+                    || arg == "-Wl,--dynamicbase"
                     || arg == "-Wl,--large-address-aware"
                 {
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
+                    // https://github.com/rust-lang/rust/blob/2fb0e8d162a021f8a795fb603f5d8c0017855160/compiler/rustc_target/src/spec/windows_gnu_base.rs#L22
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
-                    // zig doesn't support --disable-auto-image-base, --large-address-aware
+                    // zig doesn't support --disable-auto-image-base, --dynamicbase, and --large-address-aware
                     return None;
                 }
             } else if arg == "-Wl,--no-undefined-version" {
@@ -710,8 +712,20 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 },
                 "armv5te" => ("arm", "-mcpu=generic+soft_float+strict_align"),
                 "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
-                "i586" => ("i386", "-mcpu=pentium"),
-                "i686" => ("i386", "-mcpu=pentium4"),
+                arch_str @ ("i586" | "i686") => {
+                    let cpu_arg = if arch_str == "i586" {
+                        "-mcpu=pentium"
+                    } else {
+                        "-mcpu=pentium4"
+                    };
+                    let zig_version = Zig::zig_version()?;
+                    let zig_arch = if zig_version.major == 0 && zig_version.minor >= 11 {
+                        "x86"
+                    } else {
+                        "i386"
+                    };
+                    (zig_arch, cpu_arg)
+                }
                 "riscv64gc" => ("riscv64", "-mcpu=generic_rv64+m+a+f+d+c"),
                 "s390x" => ("s390x", "-mcpu=z10-vector"),
                 _ => (arch.as_str(), ""),
