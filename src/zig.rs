@@ -77,6 +77,9 @@ impl Zig {
         let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
         let is_i386 = target.map(|x| x.starts_with("i386")).unwrap_or_default();
         let is_riscv64 = target.map(|x| x.starts_with("riscv64")).unwrap_or_default();
+        let is_mips32 = target
+            .map(|x| x.starts_with("mips") && !x.starts_with("mips64"))
+            .unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
@@ -212,10 +215,15 @@ impl Zig {
                 new_cmd_args.push(arg);
             }
         }
+
+        if is_mips32 {
+            // See https://github.com/ziglang/zig/issues/4925#issuecomment-1499823425
+            new_cmd_args.push("-Wl,-z,notext".to_string());
+        }
+
         if has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
-
         if is_macos {
             if let Some(sdkroot) = Self::macos_sdk_root() {
                 let sdkroot = Path::new(&sdkroot);
