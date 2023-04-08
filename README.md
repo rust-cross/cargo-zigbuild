@@ -74,11 +74,9 @@ Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
 1. [zig cc: parse `-target` and `-mcpu`/`-march`/`-mtune` flags according to clang](https://github.com/ziglang/zig/issues/4911):
    Some Rust targets aren't recognized by `zig cc`, for example `armv7-unknown-linux-gnueabihf`, workaround by using `-mcpu=generic` and
    explicitly passing target features in [#58](https://github.com/rust-cross/cargo-zigbuild/pull/58)
-2. [glibc 2.27 or older: fcntl64 not found, but zig's glibc headers refer it](https://github.com/ziglang/zig/issues/9485): workaround by
-   using linker script in [#14](https://github.com/rust-cross/cargo-zigbuild/pull/14)
-3. [ability to link against darwin frameworks (such as CoreFoundation) when cross compiling](https://github.com/ziglang/zig/issues/1349):
+2. [ability to link against darwin frameworks (such as CoreFoundation) when cross compiling](https://github.com/ziglang/zig/issues/1349):
    Set the `SDKROOT` environment variable to a macOS SDK path to workaround it
-4. [zig misses some `compiler_rt` functions](https://github.com/ziglang/zig/issues/1290) that may lead to undefined symbol error for certain
+3. [zig misses some `compiler_rt` functions](https://github.com/ziglang/zig/issues/1290) that may lead to undefined symbol error for certain
    targets. See also: [zig compiler-rt status](https://github.com/ziglang/zig/blob/master/lib/compiler_rt/README.md).
 
 ## License
