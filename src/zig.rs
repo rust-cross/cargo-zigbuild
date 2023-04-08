@@ -800,7 +800,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
             use std::fmt::Write as _;
 
             let zig_version = Zig::zig_version()?;
-            if zig_version.major == 0 && zig_version.minor >= 11 {
+            if zig_version.major == 0 && zig_version.minor < 11 {
                 write!(
                     cc_args,
                     " -Wl,--version-script={} -include {}",
