@@ -799,13 +799,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         if glibc_version < (2, 28) {
             use std::fmt::Write as _;
 
-            write!(
-                cc_args,
-                " -Wl,--version-script={} -include {}",
-                fcntl_map.display(),
-                fcntl_h.display()
-            )
-            .unwrap();
+            let zig_version = Zig::zig_version()?;
+            if zig_version.major == 0 && zig_version.minor >= 11 {
+                write!(
+                    cc_args,
+                    " -Wl,--version-script={} -include {}",
+                    fcntl_map.display(),
+                    fcntl_h.display()
+                )
+                .unwrap();
+            }
         }
     }
 
