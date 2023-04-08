@@ -14,7 +14,7 @@ use path_slash::PathBufExt;
 use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
-use crate::linux::{ARM_FEATURES_H, FCNTL_H, FCNTL_MAP};
+use crate::linux::ARM_FEATURES_H;
 use crate::macos::LIBICONV_TBD;
 
 /// Zig linker wrapper
@@ -770,11 +770,6 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let zig_linker_dir = cache_dir();
     fs::create_dir_all(&zig_linker_dir)?;
 
-    let fcntl_map = zig_linker_dir.join("fcntl.map");
-    fs::write(&fcntl_map, FCNTL_MAP)?;
-    let fcntl_h = zig_linker_dir.join("fcntl.h");
-    fs::write(&fcntl_h, FCNTL_H)?;
-
     if triple.operating_system == OperatingSystem::Linux
         && matches!(
             triple.environment,
@@ -797,10 +792,16 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         };
         // See https://github.com/ziglang/zig/issues/9485
         if glibc_version < (2, 28) {
+            use crate::linux::{FCNTL_H, FCNTL_MAP};
             use std::fmt::Write as _;
 
             let zig_version = Zig::zig_version()?;
             if zig_version.major == 0 && zig_version.minor < 11 {
+                let fcntl_map = zig_linker_dir.join("fcntl.map");
+                fs::write(&fcntl_map, FCNTL_MAP)?;
+                let fcntl_h = zig_linker_dir.join("fcntl.h");
+                fs::write(&fcntl_h, FCNTL_H)?;
+
                 write!(
                     cc_args,
                     " -Wl,--version-script={} -include {}",
