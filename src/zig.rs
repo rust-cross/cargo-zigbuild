@@ -443,44 +443,41 @@ impl Zig {
 
             // bindgen support
             if let Ok(lib_dir) = Zig::lib_dir() {
-                let bindgen_env = format!("BINDGEN_EXTRA_CLANG_ARGS_{}", env_target);
+                // Bindgen env vars
+                let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
+                let bindgen_target_env = format!("{}_{}", bindgen_env, env_target);
+                // Closure to add bindgen env vars
+                let add_bindgen_env = |value| {
+                    if env::var_os(&bindgen_env).is_none()
+                        && env::var_os(&bindgen_target_env).is_none()
+                    {
+                        // Only set bindgen env vars if none were set
+                        cmd.env(bindgen_target_env, value);
+                    }
+                };
+
                 let libc = lib_dir.join("libc");
                 if raw_target.contains("linux") {
                     if raw_target.contains("musl") {
-                        cmd.env(
-                            bindgen_env,
-                            format!("--sysroot={}", libc.join("musl").display()),
-                        );
+                        add_bindgen_env(format!("--sysroot={}", libc.join("musl").display()));
                     } else if raw_target.contains("gnu") {
-                        cmd.env(
-                            bindgen_env,
-                            format!("--sysroot={}", libc.join("glibc").display()),
-                        );
+                        add_bindgen_env(format!("--sysroot={}", libc.join("glibc").display()));
                     }
                 } else if raw_target.contains("windows-gnu") {
-                    cmd.env(
-                        bindgen_env,
-                        format!("--sysroot={}", libc.join("mingw").display()),
-                    );
+                    add_bindgen_env(format!("--sysroot={}", libc.join("mingw").display()));
                 } else if raw_target.contains("apple-darwin") {
                     if let Some(sdkroot) = Self::macos_sdk_root() {
-                        cmd.env(
-                            bindgen_env,
-                            format!(
-                                "-I{} -F{} -DTARGET_OS_IPHONE=0",
-                                sdkroot.join("usr").join("include").display(),
-                                sdkroot
-                                    .join("System")
-                                    .join("Library")
-                                    .join("Frameworks")
-                                    .display()
-                            ),
-                        );
+                        add_bindgen_env(format!(
+                            "-I{} -F{} -DTARGET_OS_IPHONE=0",
+                            sdkroot.join("usr").join("include").display(),
+                            sdkroot
+                                .join("System")
+                                .join("Library")
+                                .join("Frameworks")
+                                .display()
+                        ));
                     } else {
-                        cmd.env(
-                            bindgen_env,
-                            format!("--sysroot={}", libc.join("darwin").display()),
-                        );
+                        add_bindgen_env(format!("--sysroot={}", libc.join("darwin").display()));
                     }
                 }
             }
