@@ -137,15 +137,19 @@ impl Zig {
                     return None;
                 }
             }
-            // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
-            if is_arm && arg.starts_with("-march=") {
-                return None;
-            }
-            if is_i386 && arg.starts_with("-march=") {
-                return None;
-            }
-            if is_riscv64 && arg.starts_with("-march=") {
-                return Some("-march=generic_rv64".to_string());
+            if arg.starts_with("-march=") {
+                // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
+                if is_arm || is_i386 {
+                    return None;
+                } else if is_riscv64 {
+                    return Some("-march=generic_rv64".to_string());
+                } else if arg.starts_with("-march=armv8-a")
+                    && target
+                        .map(|x| x.starts_with("aarch64-macos"))
+                        .unwrap_or_default()
+                {
+                    return Some(arg.replace("armv8-a", "apple_a14"));
+                }
             }
             Some(arg.to_string())
         };
