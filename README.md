@@ -79,6 +79,7 @@ Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
    Set the `SDKROOT` environment variable to a macOS SDK path to workaround it
 3. [zig misses some `compiler_rt` functions](https://github.com/ziglang/zig/issues/1290) that may lead to undefined symbol error for certain
    targets. See also: [zig compiler-rt status](https://github.com/ziglang/zig/blob/master/lib/compiler_rt/README.md).
+4. [CPU features are not passed to clang](https://github.com/ziglang/zig/issues/10411)
 
 ## License
 
