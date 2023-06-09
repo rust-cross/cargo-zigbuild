@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::str;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use fs_err as fs;
 use path_slash::PathBufExt;
 use serde::Deserialize;
@@ -446,48 +446,187 @@ impl Zig {
                 cmd.env("CARGO_TARGET_APPLIES_TO_HOST", "false");
             }
 
-            // bindgen support
-            if let Ok(lib_dir) = Zig::lib_dir() {
-                // Bindgen env vars
+            // Pass options used by zig cc down to bindgen, if possible
+            if let Ok(mut options) = Self::collect_zig_cc_options(&zig_wrapper, raw_target) {
+                if raw_target.contains("apple-darwin") {
+                    // everyone seems to miss `#import <TargetConditionals.h>`...
+                    options.push("-DTARGET_OS_IPHONE=0".to_string());
+                }
+
+                let escaped_options = shlex::join(options.iter().map(|s| &s[..]));
+
+                // Override bindgen variables to append additional options
                 let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
                 let bindgen_target_env = format!("{}_{}", bindgen_env, env_target);
-                // Closure to add bindgen env vars
-                let add_bindgen_env = |value| {
-                    if env::var_os(&bindgen_env).is_none()
-                        && env::var_os(&bindgen_target_env).is_none()
-                    {
-                        // Only set bindgen env vars if none were set
-                        cmd.env(bindgen_target_env, value);
-                    }
-                };
+                let bindgen_target_env_u =
+                    format!("{}_{}", bindgen_env, env_target.replace("-", "_"));
 
-                let libc = lib_dir.join("libc");
-                if raw_target.contains("linux") {
-                    if raw_target.contains("musl") {
-                        add_bindgen_env(format!("--sysroot={}", libc.join("musl").display()));
-                    } else if raw_target.contains("gnu") {
-                        add_bindgen_env(format!("--sysroot={}", libc.join("glibc").display()));
-                    }
-                } else if raw_target.contains("windows-gnu") {
-                    add_bindgen_env(format!("--sysroot={}", libc.join("mingw").display()));
-                } else if raw_target.contains("apple-darwin") {
-                    if let Some(sdkroot) = Self::macos_sdk_root() {
-                        add_bindgen_env(format!(
-                            "-I{} -F{} -DTARGET_OS_IPHONE=0",
-                            sdkroot.join("usr").join("include").display(),
-                            sdkroot
-                                .join("System")
-                                .join("Library")
-                                .join("Frameworks")
-                                .display()
-                        ));
+                for name in [bindgen_env, &bindgen_target_env, &bindgen_target_env_u] {
+                    if let Ok(mut value) = env::var(name) {
+                        if shlex::split(&value).is_none() {
+                            // bindgen treats the whole string as a single argument if split fails
+                            value = shlex::quote(&value).into_owned();
+                        }
+                        if !value.is_empty() {
+                            value.push(' ');
+                        }
+                        value.push_str(&escaped_options);
+                        env::set_var(name, value);
                     } else {
-                        add_bindgen_env(format!("--sysroot={}", libc.join("darwin").display()));
+                        env::set_var(name, escaped_options.clone());
                     }
                 }
             }
         }
         Ok(())
+    }
+
+    /// Collects compiler options used by `zig cc` for given target.
+    /// Used for the case where `zig cc` cannot be used but underlying options should be retained,
+    /// for example, as in bindgen (which requires libclang.so and thus is independent from zig).
+    fn collect_zig_cc_options(zig_wrapper: &ZigWrapper, raw_target: &str) -> Result<Vec<String>> {
+        #[derive(Debug, PartialEq, Eq)]
+        enum Kind {
+            Normal,
+            Framework,
+        }
+
+        fn collect_include_paths(program: &Path, lang: &str) -> Result<Vec<(Kind, String)>> {
+            let output = Command::new(program)
+                .args(["-E", "-x", lang, "-", "-v"])
+                .output()?;
+            // clang always generates UTF-8 regardless of locale
+            let stderr = String::from_utf8(output.stderr)?;
+            if !output.status.success() {
+                bail!(
+                    "Failed to run `zig cc -v` with status {}: {}",
+                    output.status,
+                    stderr.trim(),
+                );
+            }
+
+            let start = stderr
+                .find("#include <...> search starts here:")
+                .ok_or_else(|| anyhow!("Failed to parse `zig cc -v` output"))?
+                + 34;
+            let end = stderr
+                .find("End of search list.")
+                .ok_or_else(|| anyhow!("Failed to parse `zig cc -v` output"))?;
+
+            let mut paths = Vec::new();
+            for mut line in stderr[start..end].lines() {
+                line = line.trim();
+                let mut kind = Kind::Normal;
+                if line.ends_with(" (framework directory)") {
+                    line = line[..line.len() - 22].trim();
+                    kind = Kind::Framework;
+                } else if line.ends_with(" (headermap)") {
+                    bail!("C/C++ search path includes header maps, which are not supported");
+                }
+                if !line.is_empty() {
+                    paths.push((kind, line.to_owned()));
+                }
+            }
+
+            Ok(paths)
+        }
+
+        let c_paths = collect_include_paths(&zig_wrapper.cc, "c")?;
+        let mut cpp_paths = collect_include_paths(&zig_wrapper.cxx, "c++")?;
+
+        // Ensure that `cpp_paths` contains the entire `c_paths` as a prefix or a suffix.
+        let (cpp_pre_len, cpp_post_len) = if cpp_paths.starts_with(&c_paths) {
+            (0, cpp_paths.len() - c_paths.len())
+        } else if cpp_paths.ends_with(&c_paths) {
+            (cpp_paths.len() - c_paths.len(), 0)
+        } else {
+            bail!("C++ search path used by `zig cc` is unexpectedly different from C search path!");
+        };
+        if !cpp_paths[..cpp_pre_len]
+            .iter()
+            .chain(cpp_paths[cpp_paths.len() - cpp_post_len..].iter())
+            .all(|(kind, _)| *kind == Kind::Normal)
+        {
+            bail!("C++ search path used by `zig cc` contains additional special search paths!");
+        }
+
+        // Why we do need this? `BINDGEN_EXTRA_CLANG_ARGS` is agnostic to languages used,
+        // so that single arguments should be able to somehow differentiate input languages.
+        // Bindgen will surely use a known version of clang and cc1 via `zig cc` however;
+        // in principle `-c-isystem` (cc1 only) and `-cxx-isystem` can be used to achieve this.
+        //
+        // Unfortunately we also have to deal with a nitty gritty of clang driver and cc1.
+        // For example there is no such language-specific option for `-F` or `-iframework`.
+        // So we are doomed if C and C++ search path somehow contains different `-iframework`.
+        // Also we shouldn't break user-provided clang options like `-nostdinc++`.
+        // At least clang driver passes almost all `-i` options to cc1 with no changes.
+        //
+        // We may also look at possibilities to avoid tweaking `BINDGEN_EXTRA_CLANG_ARGS`:
+        //
+        // - Bindgen, indirectly via clang-sys, already tries to run clang in order to infer
+        //   compile options by itself. So we should be possible to make clang-sys to run
+        //   our version of clang. This is not yet feasible because we have to risk polluting
+        //   a global namespace via `CLANG_PATH` or `PATH`. (Clang-sys also looks for target-
+        //   prefixed `clang`, but this doesn't work in macOS and bindgen has a minor issue
+        //   that prevents a correct target detection.)
+        //
+        // - Recent clang supports configuration files for each driver (`clang` or `clang++`).
+        //   This doesn't work when we explicitly give `--config=...` arguments though,
+        //   and clang-sys doesn't even try to call `clang++` at all, so it's useless for us.
+
+        let mut args = Vec::new();
+
+        // we always have some arguments left unused, so let's temporarily disable this...
+        args.push("--start-no-unused-arguments".to_owned());
+
+        // options for libc++
+        if raw_target.contains("musl") {
+            args.push("-D_LIBCPP_HAS_MUSL_LIBC".to_owned());
+        }
+        args.push("-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
+        args.push("-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
+        args.push("-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS".to_owned());
+        args.push("-D_LIBCPP_ABI_VERSION=1".to_owned());
+        args.push("-D_LIBCPP_ABI_NAMESPACE=__1".to_owned());
+
+        for (kind, path) in cpp_paths.drain(..cpp_pre_len) {
+            assert!(kind == Kind::Normal);
+            // so that `-nostdinc++` can disable them
+            args.push("-stdlib++-isystem".to_owned());
+            args.push(path);
+        }
+
+        for (kind, path) in c_paths {
+            match kind {
+                Kind::Normal => {
+                    // we can't just use `-isystem` because `-stdlib++-isystem` will be
+                    // always moved to the end of cc1 arguments, and we don't want
+                    // C search paths preceed C++ search paths (libc++ will warn).
+                    args.push("-Xclang".to_owned());
+                    args.push("-c-isystem".to_owned());
+                    args.push("-Xclang".to_owned());
+                    args.push(path.clone());
+                    // likewise, we need to retain relative order for all C++ paths
+                    // and we can't use `-cxx-isystem` here.
+                    args.push("-stdlib++-isystem".to_owned());
+                    args.push(path);
+                }
+                Kind::Framework => {
+                    args.push("-iframework".to_owned());
+                    args.push(path);
+                }
+            }
+        }
+
+        for (kind, path) in cpp_paths.drain(cpp_paths.len() - cpp_post_len..) {
+            assert!(kind == Kind::Normal);
+            args.push("-stdlib++-isystem".to_owned());
+            args.push(path);
+        }
+
+        args.push("--end-no-unused-arguments".to_owned());
+
+        Ok(args)
     }
 
     fn setup_os_deps(
