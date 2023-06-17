@@ -490,10 +490,16 @@ impl Zig {
         }
 
         fn collect_include_paths(program: &Path, lang: &str) -> Result<Vec<(Kind, String)>> {
+            // We can't use `-x c` or `-x c++` because pre-0.11 Zig doesn't handle them
+            let empty_file_path = cache_dir().join(format!(".intentionally-empty-file.{ext}"));
+            fs::write(&empty_file_path, "")?;
+
             let output = Command::new(program)
-                .args(["-E", "-x", lang, "-", "-v"])
+                .arg("-E")
+                .arg(&empty_file_path)
+                .arg("-v")
                 .output()?;
-            // clang always generates UTF-8 regardless of locale
+            // Clang always generates UTF-8 regardless of locale, so this is okay.
             let stderr = String::from_utf8(output.stderr)?;
             if !output.status.success() {
                 bail!(
