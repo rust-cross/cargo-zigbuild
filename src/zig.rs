@@ -585,29 +585,57 @@ impl Zig {
             bail!("C++ search path used by `zig cc` contains additional special search paths!");
         }
 
-        // Why we do need this? `BINDGEN_EXTRA_CLANG_ARGS` is agnostic to languages used,
-        // so that single arguments should be able to somehow differentiate input languages.
-        // Bindgen will surely use a known version of clang and cc1 via `zig cc` however;
-        // in principle `-c-isystem` (cc1 only) and `-cxx-isystem` can be used to achieve this.
+        // <digression>
         //
-        // Unfortunately we also have to deal with a nitty gritty of clang driver and cc1.
-        // For example there is no such language-specific option for `-F` or `-iframework`.
-        // So we are doomed if C and C++ search path somehow contains different `-iframework`.
-        // Also we shouldn't break user-provided clang options like `-nostdinc++`.
-        // At least clang driver passes almost all `-i` options to cc1 with no changes.
+        // So, why we do need all of these?
         //
-        // We may also look at possibilities to avoid tweaking `BINDGEN_EXTRA_CLANG_ARGS`:
+        // Bindgen wouldn't look at our `zig cc` (which doesn't contain `libclang.so` anyway),
+        // but it does collect include paths from the local clang and feed them to `libclang.so`.
+        // We want those include paths to come from our `zig cc` instead of the local clang.
+        // There are three main mechanisms possible:
         //
-        // - Bindgen, indirectly via clang-sys, already tries to run clang in order to infer
-        //   compile options by itself. So we should be possible to make clang-sys to run
-        //   our version of clang. This is not yet feasible because we have to risk polluting
-        //   a global namespace via `CLANG_PATH` or `PATH`. (Clang-sys also looks for target-
-        //   prefixed `clang`, but this doesn't work in macOS and bindgen has a minor issue
-        //   that prevents a correct target detection.)
+        // 1. Replace the local clang with our version.
         //
-        // - Recent clang supports configuration files for each driver (`clang` or `clang++`).
-        //   This doesn't work when we explicitly give `--config=...` arguments though,
-        //   and clang-sys doesn't even try to call `clang++` at all, so it's useless for us.
+        //    Bindgen, internally via clang-sys, recognizes `CLANG_PATH` and `PATH`.
+        //    They are unfortunately a global namespace and simply setting them may break
+        //    existing build scripts, so we can't confidently override them.
+        //
+        //    Clang-sys can also look at target-prefixed clang if arguments contain `-target`.
+        //    Unfortunately clang-sys can only recognize `-target xxx`, which very slightly
+        //    differs from what bindgen would pass (`-target=xxx`), so this is not yet possible.
+        //
+        //    It should be also noted that we need to collect not only include paths
+        //    but macro definitions added by Zig, for example `-D__GLIBC_MINOR__`.
+        //    Clang-sys can't do this yet, so this option seems less robust than we want.
+        //
+        // 2. Set the environment variable `BINDGEN_EXTRA_CLANG_ARGS` and let bindgen to
+        //    append them to arguments passed to `libclang.so`.
+        //
+        //    This unfortunately means that we have the same set of arguments for C and C++.
+        //    Also we have to support older versions of clang, as old as clang 5 (2017).
+        //    We do have options like `-c-isystem` (cc1 only) and `-cxx-isystem`,
+        //    but we need to be aware of other options may affect our added options
+        //    and this requires a nitty gritty of clang driver and cc1---really annoying.
+        //
+        // 3. Fix either bindgen or clang-sys or Zig to ease our jobs.
+        //
+        //    This is not the option for now because, even after fixes, we have to support
+        //    older versions of bindgen or Zig which won't have those fixes anyway.
+        //    But it seems that minor changes to bindgen can indeed fix lots of issues
+        //    we face, so we are looking for them in the future.
+        //
+        // For this reason, we chose the option 2 and overrode `BINDGEN_EXTRA_CLANG_ARGS`.
+        // The following therefore assumes some understanding about clang option handling,
+        // including what the heck is cc1 (see the clang FAQ) and how driver options get
+        // translated to cc1 options (no documentation at all, as it's supposedly unstable).
+        // Fortunately for us, most (but not all) `-i...` options are passed through cc1.
+        //
+        // If you do experience weird compilation errors during bindgen, there's a chance
+        // that this code has overlooked some edge cases. You can put `.clang_arg("-###")`
+        // to print the final cc1 options, which would give a lot of information about
+        // how it got screwed up and help a lot when we fix the issue.
+        //
+        // </digression>
 
         let mut args = Vec::new();
 
