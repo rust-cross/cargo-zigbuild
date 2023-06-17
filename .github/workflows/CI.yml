@@ -33,6 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         toolchain: [1.63.0, stable, nightly]
+        # Ideally we should also test against 0.9.0, but it is too unusable to test from CI
         zig: [0.10.1, master]
         exclude:
           # Only test MSRV with zig stable version
@@ -80,6 +81,9 @@ jobs:
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
+          cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-unknown-linux-gnu
+          cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target x86_64-pc-windows-gnu
+          cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-apple-darwin
       - name: macOS - Test build
         run: |
           cargo run zigbuild --target aarch64-apple-darwin
