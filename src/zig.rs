@@ -457,12 +457,10 @@ impl Zig {
 
                 // Override bindgen variables to append additional options
                 let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
-                let bindgen_target_env = format!("{}_{}", bindgen_env, env_target);
-                let bindgen_target_env_u =
-                    format!("{}_{}", bindgen_env, env_target.replace("-", "_"));
-
-                for name in [bindgen_env, &bindgen_target_env, &bindgen_target_env_u] {
-                    if let Ok(mut value) = env::var(name) {
+                let fallback_value = env::var(bindgen_env);
+                for target in [&env_target[..], parsed_target] {
+                    let name = format!("{bindgen_env}_{target}");
+                    if let Ok(mut value) = env::var(&name).or(fallback_value.clone()) {
                         if shlex::split(&value).is_none() {
                             // bindgen treats the whole string as a single argument if split fails
                             value = shlex::quote(&value).into_owned();
