@@ -637,24 +637,24 @@ impl Zig {
 
         for (kind, path) in cpp_paths.drain(..cpp_pre_len) {
             assert!(kind == Kind::Normal);
-            // so that `-nostdinc++` can disable them
-            args.push("-stdlib++-isystem".to_owned());
+            // Ideally this should be `-stdlib++-isystem`, which can be disabled by
+            // passing `-nostdinc++`, but it is fairly new: https://reviews.llvm.org/D64089
+            //
+            // (Also note that `-stdlib++-isystem` is a driver-only option,
+            // so it will be moved relative to other `-isystem` options against our will.)
+            args.push("-cxx-isystem".to_owned());
             args.push(path);
         }
 
         for (kind, path) in c_paths {
             match kind {
                 Kind::Normal => {
-                    // we can't just use `-isystem` because `-stdlib++-isystem` will be
-                    // always moved to the end of cc1 arguments, and we don't want
-                    // C search paths preceed C++ search paths (libc++ will warn).
+                    // A normal `-isystem` is preferred over `-cxx-isystem` by cc1...
                     args.push("-Xclang".to_owned());
                     args.push("-c-isystem".to_owned());
                     args.push("-Xclang".to_owned());
                     args.push(path.clone());
-                    // likewise, we need to retain relative order for all C++ paths
-                    // and we can't use `-cxx-isystem` here.
-                    args.push("-stdlib++-isystem".to_owned());
+                    args.push("-cxx-isystem".to_owned());
                     args.push(path);
                 }
                 Kind::Framework => {
@@ -666,7 +666,7 @@ impl Zig {
 
         for (kind, path) in cpp_paths.drain(cpp_paths.len() - cpp_post_len..) {
             assert!(kind == Kind::Normal);
-            args.push("-stdlib++-isystem".to_owned());
+            args.push("-cxx-isystem".to_owned());
             args.push(path);
         }
 
