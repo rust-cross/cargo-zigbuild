@@ -33,6 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         toolchain: [1.63.0, stable, nightly]
+        # Ideally we should also test against 0.9.0, but it is too unusable to test from CI
         zig: [0.10.1, master]
         exclude:
           # Only test MSRV with zig stable version
