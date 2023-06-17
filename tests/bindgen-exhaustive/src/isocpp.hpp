@@ -1,3 +1,10 @@
+// libcxx versions vendored by Zig:
+//
+//           v--- _LIBCPP_VERSION
+// 13.0.0 (13000)      Zig 0.9.x
+// 15.0.3 (15003)      Zig 0.10.x
+// 16.0.1 (160001)     Zig 0.11.0 (master, as of 2023-04)
+
 #include <algorithm>
 #include <any>
 #include <array>
@@ -21,7 +28,9 @@
 #include <complex>
 #include <concepts>
 #include <condition_variable>
-#include <coroutine>
+#if _LIBCPP_VERSION >= 15000
+	#include <coroutine>
+#endif
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
@@ -31,7 +40,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <cuchar>
+#if _LIBCPP_VERSION >= 15000
+	#include <cuchar>
+#endif
 #include <cwchar>
 #include <cwctype>
 #include <deque>
@@ -56,7 +67,9 @@
 #include <locale>
 #include <map>
 #include <memory>
-#include <memory_resource>
+#if _LIBCPP_VERSION >= 160000
+	#include <memory_resource>
+#endif
 #include <mutex>
 #include <new>
 #include <numbers>
@@ -72,12 +85,14 @@
 #include <semaphore>
 #include <set>
 #include <shared_mutex>
-//#include <source_location> // requires libc++ 15
+#if _LIBCPP_VERSION >= 160000
+	#include <source_location>
+#endif
 #include <span>
 #include <sstream>
 #include <stack>
 #include <stdexcept>
-//#include <stop_token> // requires libc++ 17
+//#include <stop_token> // not yet supported by libc++ (git only)
 #include <streambuf>
 #include <string>
 #include <string_view>
@@ -115,7 +130,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <uchar.h>
+#if _LIBCPP_VERSION >= 15000
+	#include <uchar.h>
+#endif
 #include <wchar.h>
 #include <wctype.h>
 
