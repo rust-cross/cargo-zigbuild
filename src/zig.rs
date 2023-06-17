@@ -489,7 +489,13 @@ impl Zig {
             Framework,
         }
 
-        fn collect_include_paths(program: &Path, lang: &str) -> Result<Vec<(Kind, String)>> {
+        #[derive(Debug)]
+        struct PerLanguageOptions {
+            glibc_minor_ver: Option<u32>,
+            include_paths: Vec<(Kind, String)>,
+        }
+
+        fn collect_per_language_options(program: &Path, ext: &str) -> Result<PerLanguageOptions> {
             // We can't use `-x c` or `-x c++` because pre-0.11 Zig doesn't handle them
             let empty_file_path = cache_dir().join(format!(".intentionally-empty-file.{ext}"));
             fs::write(&empty_file_path, "")?;
@@ -509,6 +515,19 @@ impl Zig {
                 );
             }
 
+            // Collect some macro definitions from cc1 options. We can't directly use
+            // them though, as we can't distinguish options added by zig from options
+            // added by clang driver (e.g. `__GCC_HAVE_DWARF2_CFI_ASM`).
+            let glibc_minor_ver = if let Some(start) = stderr.find("__GLIBC_MINOR__=") {
+                let stderr = &stderr[start + 16..];
+                let end = stderr
+                    .find(|c| !matches!(c, '0'..='9'))
+                    .unwrap_or(stderr.len());
+                stderr[..end].parse().ok()
+            } else {
+                None
+            };
+
             let start = stderr
                 .find("#include <...> search starts here:")
                 .ok_or_else(|| anyhow!("Failed to parse `zig cc -v` output"))?
@@ -517,7 +536,7 @@ impl Zig {
                 .find("End of search list.")
                 .ok_or_else(|| anyhow!("Failed to parse `zig cc -v` output"))?;
 
-            let mut paths = Vec::new();
+            let mut include_paths = Vec::new();
             for mut line in stderr[start..end].lines() {
                 line = line.trim();
                 let mut kind = Kind::Normal;
@@ -528,17 +547,29 @@ impl Zig {
                     bail!("C/C++ search path includes header maps, which are not supported");
                 }
                 if !line.is_empty() {
-                    paths.push((kind, line.to_owned()));
+                    include_paths.push((kind, line.to_owned()));
                 }
             }
 
-            Ok(paths)
+            Ok(PerLanguageOptions {
+                include_paths,
+                glibc_minor_ver,
+            })
         }
 
-        let c_paths = collect_include_paths(&zig_wrapper.cc, "c")?;
-        let mut cpp_paths = collect_include_paths(&zig_wrapper.cxx, "c++")?;
+        let c_opts = collect_per_language_options(&zig_wrapper.cc, "c")?;
+        let cpp_opts = collect_per_language_options(&zig_wrapper.cxx, "cpp")?;
 
-        // Ensure that `cpp_paths` contains the entire `c_paths` as a prefix or a suffix.
+        // Ensure that `c_opts` and `cpp_opts` are almost identical in the way we expect.
+        if c_opts.glibc_minor_ver != cpp_opts.glibc_minor_ver {
+            bail!(
+                "`zig cc` gives a different glibc minor version for C ({:?}) and C++ ({:?})",
+                c_opts.glibc_minor_ver,
+                cpp_opts.glibc_minor_ver,
+            );
+        }
+        let c_paths = c_opts.include_paths;
+        let mut cpp_paths = cpp_opts.include_paths;
         let (cpp_pre_len, cpp_post_len) = if cpp_paths.starts_with(&c_paths) {
             (0, cpp_paths.len() - c_paths.len())
         } else if cpp_paths.ends_with(&c_paths) {
@@ -583,7 +614,13 @@ impl Zig {
         // we always have some arguments left unused, so let's temporarily disable this...
         args.push("--start-no-unused-arguments".to_owned());
 
-        // options for libc++
+        // Add various options for libc++ and glibc.
+        // Should match what `Compilation.zig` internally does:
+        //
+        // https://github.com/ziglang/zig/blob/0.9.0/src/Compilation.zig#L3390-L3427
+        // https://github.com/ziglang/zig/blob/0.9.1/src/Compilation.zig#L3408-L3445
+        // https://github.com/ziglang/zig/blob/0.10.0/src/Compilation.zig#L4163-L4211
+        // https://github.com/ziglang/zig/blob/0.10.1/src/Compilation.zig#L4240-L4288
         if raw_target.contains("musl") {
             args.push("-D_LIBCPP_HAS_MUSL_LIBC".to_owned());
         }
@@ -592,6 +629,10 @@ impl Zig {
         args.push("-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS".to_owned());
         args.push("-D_LIBCPP_ABI_VERSION=1".to_owned());
         args.push("-D_LIBCPP_ABI_NAMESPACE=__1".to_owned());
+        if let Some(ver) = c_opts.glibc_minor_ver {
+            // Handled separately because we have no way to infer this without Zig
+            args.push(format!("-D__GLIBC_MINOR__={ver}"));
+        }
 
         for (kind, path) in cpp_paths.drain(..cpp_pre_len) {
             assert!(kind == Kind::Normal);
