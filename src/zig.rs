@@ -611,8 +611,9 @@ impl Zig {
 
         let mut args = Vec::new();
 
-        // we always have some arguments left unused, so let's temporarily disable this...
-        args.push("--start-no-unused-arguments".to_owned());
+        // Never include default include directories,
+        // otherwise `__has_include` will be totally confused.
+        args.push("-nostdinc".to_owned());
 
         // Add various options for libc++ and glibc.
         // Should match what `Compilation.zig` internally does:
@@ -668,8 +669,6 @@ impl Zig {
             args.push("-stdlib++-isystem".to_owned());
             args.push(path);
         }
-
-        args.push("--end-no-unused-arguments".to_owned());
 
         Ok(args)
     }
