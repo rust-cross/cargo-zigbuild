@@ -756,7 +756,8 @@ impl Zig {
                     if !synchronization_def.is_file() {
                         let api_ms_win_core_synch_l1_2_0_def =
                             lib_common.join("api-ms-win-core-synch-l1-2-0.def");
-                        fs::copy(api_ms_win_core_synch_l1_2_0_def, synchronization_def)?;
+                        // Ignore error
+                        fs::copy(api_ms_win_core_synch_l1_2_0_def, synchronization_def).ok();
                     }
                 }
             }
