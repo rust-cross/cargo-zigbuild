@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use libz_sys::zlibVersion;
+use libz_ng_sys::zlibVersion;
 
 fn main() {
     let ver = unsafe { zlibVersion() };
