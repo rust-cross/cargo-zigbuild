@@ -34,16 +34,12 @@ jobs:
           name: apple-darwin-bin
           path: target/release/cargo-zigbuild
           if-no-files-found: error
-      - name: Get tag
-        if: "startsWith(github.ref, 'refs/tags/')"
-        id: tag
-        uses: dawidd6/action-get-tag@v1
       - name: Archive binary
         if: "startsWith(github.ref, 'refs/tags/')"
         run: |
           cd target/release
-          tar czvf cargo-zigbuild-${{ steps.tag.outputs.tag }}.apple-darwin.tar.gz cargo-zigbuild
-          shasum -a 256 cargo-zigbuild-${{ steps.tag.outputs.tag }}.apple-darwin.tar.gz > cargo-zigbuild-${{ steps.tag.outputs.tag }}.apple-darwin.tar.gz.sha256
+          tar czvf cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz cargo-zigbuild
+          shasum -a 256 cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz > cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz.sha256
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
@@ -86,15 +82,11 @@ jobs:
           name: windows-${{ matrix.platform.arch }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild.exe
           if-no-files-found: error
-      - name: Get tag
-        if: "startsWith(github.ref, 'refs/tags/')"
-        id: tag
-        uses: dawidd6/action-get-tag@v1
       - name: Archive binary
         if: "startsWith(github.ref, 'refs/tags/')"
         run: |
           cd target/${{ matrix.platform.target }}/release
-          7z a cargo-zigbuild-${{ steps.tag.outputs.tag }}.windows-${{ matrix.platform.arch }}.zip cargo-zigbuild.exe
+          7z a cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip cargo-zigbuild.exe
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
@@ -141,16 +133,12 @@ jobs:
           name: ${{ matrix.platform.target }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild
           if-no-files-found: error
-      - name: Get tag
-        if: "startsWith(github.ref, 'refs/tags/')"
-        id: tag
-        uses: dawidd6/action-get-tag@v1
       - name: Archive binary
         if: "startsWith(github.ref, 'refs/tags/')"
         run: |
           cd target/${{ matrix.platform.target }}/release
-          tar czvf cargo-zigbuild-${{ steps.tag.outputs.tag }}.${{ matrix.platform.target }}.tar.gz cargo-zigbuild
-          shasum -a 256 cargo-zigbuild-${{ steps.tag.outputs.tag }}.${{ matrix.platform.target }}.tar.gz > cargo-zigbuild-${{ steps.tag.outputs.tag }}.${{ matrix.platform.target }}.tar.gz.sha256
+          tar czvf cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz cargo-zigbuild
+          shasum -a 256 cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz > cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz.sha256
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
