@@ -143,12 +143,21 @@ impl Zig {
                     return None;
                 } else if is_riscv64 {
                     return Some("-march=generic_rv64".to_string());
-                } else if arg.starts_with("-march=armv8-a")
-                    && target
+                } else if arg.starts_with("-march=armv8-a") {
+                    if target
                         .map(|x| x.starts_with("aarch64-macos"))
                         .unwrap_or_default()
-                {
-                    return Some(arg.replace("armv8-a", "apple_a14"));
+                    {
+                        return Some(arg.replace("armv8-a", "apple_a14"));
+                    } else if target
+                        .map(|x| x.starts_with("aarch64-linux"))
+                        .unwrap_or_default()
+                    {
+                        return Some(
+                            arg.replace("armv8-a", "generic+v8a")
+                                .replace("simd", "neon"),
+                        );
+                    }
                 }
             }
             Some(arg.to_string())
