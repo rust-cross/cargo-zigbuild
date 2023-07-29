@@ -385,10 +385,12 @@ impl Zig {
                 let zig_cxx = zig_wrapper.cxx.to_slash_lossy();
                 add_env(format!("CC_{env_target}"), &*zig_cc);
                 add_env(format!("CXX_{env_target}"), &*zig_cxx);
-                add_env(
-                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    &*zig_cc,
-                );
+                if !parsed_target.contains("wasm") {
+                    add_env(
+                        format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                        &*zig_cc,
+                    );
+                }
             } else {
                 let mut add_env = |name, value| {
                     if env::var_os(&name).is_none() {
@@ -397,10 +399,12 @@ impl Zig {
                 };
                 add_env(format!("CC_{env_target}"), &zig_wrapper.cc);
                 add_env(format!("CXX_{env_target}"), &zig_wrapper.cxx);
-                add_env(
-                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    &zig_wrapper.cc,
-                );
+                if !parsed_target.contains("wasm") {
+                    add_env(
+                        format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                        &zig_wrapper.cc,
+                    );
+                }
             }
 
             let mut add_env = |name, value| {
@@ -987,6 +991,17 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 arch => arch,
             };
             format!("-target {zig_arch}-windows-{target_env}{abi_suffix} {cc_args}",)
+        }
+        OperatingSystem::Emscripten => format!("-target {arch}-emscripten{abi_suffix} {cc_args}"),
+        OperatingSystem::Wasi => format!("-target {arch}-wasi{abi_suffix} {cc_args}"),
+        OperatingSystem::Unknown => {
+            if triple.architecture == Architecture::Wasm32
+                || triple.architecture == Architecture::Wasm64
+            {
+                format!("-target {arch}-freestanding{abi_suffix} {cc_args}")
+            } else {
+                bail!("unsupported target '{rust_target}'")
+            }
         }
         _ => bail!(format!("unsupported target '{rust_target}'")),
     };
