@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 #[cfg(target_family = "unix")]
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -357,6 +358,19 @@ impl Zig {
         Ok(PathBuf::from(zig_env.lib_dir))
     }
 
+    fn add_env_if_missing<K, V>(command: &mut Command, name: K, value: V)
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        let command_env_contains_no_key =
+            |name: &K| !command.get_envs().any(|(key, _)| name.as_ref() == key);
+
+        if command_env_contains_no_key(&name) && env::var_os(&name).is_none() {
+            command.env(name, value);
+        }
+    }
+
     pub(crate) fn apply_command_env(
         manifest_path: Option<&Path>,
         release: bool,
@@ -370,53 +384,54 @@ impl Zig {
             .iter()
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
             .collect::<Vec<&str>>();
+        let zig_version = Zig::zig_version()?;
         let rustc_meta = rustc_version::version_meta()?;
         let host_target = &rustc_meta.host;
         for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
             let env_target = parsed_target.replace('-', "_");
             let zig_wrapper = prepare_zig_linker(raw_target)?;
+
+            // as zig 0.11.0 is released, its musl has been upgraded to 1.2.4 with break changes
+            // but rust is still with musl 1.2.3
+            // we need this workaround until rust adopts new musl or removes LFS64 symbols
+            // https://github.com/ziglang/zig/pull/16098
+            if Self::is_zig_above_0_11_0(&zig_version) && raw_target.contains("musl") {
+                Self::add_env_if_missing(
+                    cmd,
+                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
+                    "rust-lld",
+                )
+            }
+
             if is_mingw_shell() {
-                let mut add_env = |name, value| {
-                    if env::var_os(&name).is_none() {
-                        cmd.env(name, value);
-                    }
-                };
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
                 let zig_cxx = zig_wrapper.cxx.to_slash_lossy();
-                add_env(format!("CC_{env_target}"), &*zig_cc);
-                add_env(format!("CXX_{env_target}"), &*zig_cxx);
+                Self::add_env_if_missing(cmd, format!("CC_{env_target}"), &*zig_cc);
+                Self::add_env_if_missing(cmd, format!("CXX_{env_target}"), &*zig_cxx);
                 if !parsed_target.contains("wasm") {
-                    add_env(
+                    Self::add_env_if_missing(
+                        cmd,
                         format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                         &*zig_cc,
                     );
                 }
             } else {
-                let mut add_env = |name, value| {
-                    if env::var_os(&name).is_none() {
-                        cmd.env(name, value);
-                    }
-                };
-                add_env(format!("CC_{env_target}"), &zig_wrapper.cc);
-                add_env(format!("CXX_{env_target}"), &zig_wrapper.cxx);
+                Self::add_env_if_missing(cmd, format!("CC_{env_target}"), &zig_wrapper.cc);
+                Self::add_env_if_missing(cmd, format!("CXX_{env_target}"), &zig_wrapper.cxx);
                 if !parsed_target.contains("wasm") {
-                    add_env(
+                    Self::add_env_if_missing(
+                        cmd,
                         format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
                         &zig_wrapper.cc,
                     );
                 }
             }
 
-            let mut add_env = |name, value| {
-                if env::var_os(&name).is_none() {
-                    cmd.env(name, value);
-                }
-            };
-            add_env(format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
+            Self::add_env_if_missing(cmd, format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
-                add_env(format!("AR_{env_target}"), &zig_wrapper.ar);
+                Self::add_env_if_missing(cmd, format!("AR_{env_target}"), &zig_wrapper.ar);
             }
 
             Self::setup_os_deps(manifest_path, release, cargo)?;
@@ -490,6 +505,10 @@ impl Zig {
             }
         }
         Ok(())
+    }
+
+    fn is_zig_above_0_11_0(zig_version: &semver::Version) -> bool {
+        zig_version >= &semver::Version::new(0, 11, 0)
     }
 
     /// Collects compiler options used by `zig cc` for given target.
