@@ -84,6 +84,7 @@ impl Zig {
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
+        let zig_version = Zig::zig_version()?;
 
         let filter_linker_arg = |arg: &str| {
             if arg == "-lgcc_s" {
@@ -103,6 +104,12 @@ impl Zig {
                     // zig doesn't provide gcc_eh alternative
                     // We use libc++ to replace it on windows gnu targets
                     return Some("-lc++".to_string());
+                } else if arg == "-Wl,-Bdynamic" && Self::is_zig_above_0_11_0(&zig_version) {
+                    // https://github.com/ziglang/zig/pull/16058
+                    // zig changes the linker behavior, -Bdynamic won't search *.a for mingw, but this may be fixed in the later version
+                    // here is a workaround to replace the linker switch with -search_paths_first, which will search for *.dll,*lib first,
+                    // then fallback to *.a
+                    return Some("-Wl,-search_paths_first".to_owned());
                 } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
                     return None;
                 } else if arg == "-Wl,--disable-auto-image-base"
