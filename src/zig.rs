@@ -100,7 +100,19 @@ impl Zig {
                     return Some("-lc++".to_string());
                 } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
                     return None;
+                } else if arg == "-Wl,--disable-auto-image-base"
+                    || arg == "-Wl,--large-address-aware"
+                    || arg == "-Wl,--no-undefined-version"
+                {
+                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
+                    // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
+                    // zig doesn't support --disable-auto-image-base, --large-address-aware
+                    return None;
                 }
+            } else if arg == "-Wl,--no-undefined-version" {
+                // https://github.com/rust-lang/rust/blob/542ed2bf72b232b245ece058fc11aebb1ca507d7/compiler/rustc_codegen_ssa/src/back/linker.rs#L723
+                // zig doesn't support --no-undefined-version
+                return None;                
             }
             if is_musl {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
