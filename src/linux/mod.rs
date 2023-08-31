@@ -18,3 +18,10 @@ pub static FCNTL_H: &str = r#"
 __asm__(".symver fcntl64, fcntl@GLIBC_2.2.5");
 #endif
 "#;
+
+pub static MUSL_WEAK_SYMBOLS_MAPPING_SCRIPT: &str = r#"
+PROVIDE (open64 = open);
+PROVIDE (stat64 = stat);
+PROVIDE (fstat64 = fstat);
+PROVIDE (lseek64 = lseek);
+"#;
