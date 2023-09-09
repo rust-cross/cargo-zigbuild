@@ -16,7 +16,7 @@ use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
 use crate::linux::ARM_FEATURES_H;
-use crate::macos::LIBICONV_TBD;
+use crate::macos::{LIBCHARSET_TBD, LIBICONV_TBD};
 
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]
@@ -246,6 +246,13 @@ impl Zig {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
         if is_macos {
+            // See https://github.com/apple-oss-distributions/libiconv/blob/a167071feb7a83a01b27ec8d238590c14eb6faff/xcodeconfig/libiconv.xcconfig
+            if (zig_version.major, zig_version.minor) >= (0, 12)
+                && cmd_args.iter().any(|x| x == "-liconv")
+                && !cmd_args.iter().any(|x| x == "-lcharset")
+            {
+                new_cmd_args.push("-lcharset".to_string());
+            }
             if let Some(sdkroot) = Self::macos_sdk_root() {
                 let sdkroot = Path::new(&sdkroot);
                 new_cmd_args.extend_from_slice(&[
@@ -560,7 +567,7 @@ impl Zig {
             let glibc_minor_ver = if let Some(start) = stderr.find("__GLIBC_MINOR__=") {
                 let stderr = &stderr[start + 16..];
                 let end = stderr
-                    .find(|c| !matches!(c, '0'..='9'))
+                    .find(|c: char| !c.is_ascii_digit())
                     .unwrap_or(stderr.len());
                 stderr[..end].parse().ok()
             } else {
@@ -776,6 +783,8 @@ impl Zig {
                 let deps_dir = target_dir.join(profile).join("deps");
                 fs::create_dir_all(&deps_dir)?;
                 fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
+                fs::write(deps_dir.join("libcharset.1.tbd"), LIBCHARSET_TBD)?;
+                fs::write(deps_dir.join("libcharset.tbd"), LIBCHARSET_TBD)?;
             } else if target.contains("arm") && target.contains("linux") {
                 // See https://github.com/ziglang/zig/issues/3287
                 if let Ok(lib_dir) = Zig::lib_dir() {
