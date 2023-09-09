@@ -755,9 +755,10 @@ impl Zig {
                         // cargo install doesn't pass a manifest path so `Cargo.toml` in cwd may not exist
                         continue;
                     }
-                    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
-                    metadata_cmd.manifest_path(manifest_path);
-                    let metadata = metadata_cmd.exec()?;
+                    let metadata = cargo_metadata::MetadataCommand::new()
+                        .manifest_path(manifest_path)
+                        .no_deps()
+                        .exec()?;
                     metadata.target_directory.into_std_path_buf().join(target)
                 };
                 let profile = match cargo.profile.as_deref() {
