@@ -246,15 +246,20 @@ impl Zig {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
         if is_macos {
-            // See https://github.com/apple-oss-distributions/libiconv/blob/a167071feb7a83a01b27ec8d238590c14eb6faff/xcodeconfig/libiconv.xcconfig
-            if (zig_version.major, zig_version.minor) >= (0, 12)
-                && cmd_args.iter().any(|x| x == "-liconv")
-                && !cmd_args.iter().any(|x| x == "-lcharset")
-            {
-                new_cmd_args.push("-lcharset".to_string());
+            let sdkroot = Self::macos_sdk_root();
+            if (zig_version.major, zig_version.minor) >= (0, 12) {
+                // See https://github.com/apple-oss-distributions/libiconv/blob/a167071feb7a83a01b27ec8d238590c14eb6faff/xcodeconfig/libiconv.xcconfig
+                if cmd_args.iter().any(|x| x == "-liconv")
+                    && !cmd_args.iter().any(|x| x == "-lcharset")
+                {
+                    new_cmd_args.push("-lcharset".to_string());
+                }
+                // Looks like zig 0.12.0 requires passing `--sysroot`
+                if let Some(ref sdkroot) = sdkroot {
+                    new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
+                }
             }
-            if let Some(sdkroot) = Self::macos_sdk_root() {
-                let sdkroot = Path::new(&sdkroot);
+            if let Some(ref sdkroot) = sdkroot {
                 new_cmd_args.extend_from_slice(&[
                     "-isystem".to_string(),
                     format!("{}", sdkroot.join("usr").join("include").display()),
