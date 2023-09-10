@@ -68,7 +68,9 @@ impl Zig {
             .iter()
             .position(|x| x == "-target")
             .and_then(|index| cmd_args.get(index + 1))
-            .context("Failed to determine compilation target triple")?;
+            .with_context(|| {
+                format!("Failed to determine compilation target triple from: {cmd_args:?}")
+            })?;
         let is_musl = target.contains("musl");
         let is_windows_gnu = target.contains("windows-gnu");
         let is_windows_msvc = target.contains("windows-msvc");
