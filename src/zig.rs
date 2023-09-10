@@ -871,12 +871,15 @@ set(CMAKE_CXX_COMPILER {cxx})
 set(CMAKE_RANLIB {ranlib})"#,
             system_name = system_name,
             system_processor = system_processor,
-            cc = zig_wrapper.cc.display(),
-            cxx = zig_wrapper.cxx.display(),
-            ranlib = zig_wrapper.ranlib.display(),
+            cc = zig_wrapper.cc.to_slash_lossy(),
+            cxx = zig_wrapper.cxx.to_slash_lossy(),
+            ranlib = zig_wrapper.ranlib.to_slash_lossy(),
         );
         if enable_zig_ar {
-            content.push_str(&format!("\nset(CMAKE_AR {})\n", zig_wrapper.ar.display()));
+            content.push_str(&format!(
+                "\nset(CMAKE_AR {})\n",
+                zig_wrapper.ar.to_slash_lossy()
+            ));
         }
         fs::write(&toolchain_file, content)?;
         Ok(toolchain_file)
