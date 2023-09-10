@@ -186,6 +186,14 @@ impl Zig {
                 .and_then(|i| args.get(i + 1));
             matches!(undefined, Some(x) if x == "dynamic_lookup")
         };
+        let should_add_libcharset = |args: &[String]| {
+            // See https://github.com/apple-oss-distributions/libiconv/blob/a167071feb7a83a01b27ec8d238590c14eb6faff/xcodeconfig/libiconv.xcconfig
+            if (zig_version.major, zig_version.minor) >= (0, 12) {
+                args.iter().any(|x| x == "-liconv") && !args.iter().any(|x| x == "-lcharset")
+            } else {
+                false
+            }
+        };
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
         for arg in cmd_args {
@@ -224,6 +232,9 @@ impl Zig {
                 if has_undefined_dynamic_lookup(&link_args) {
                     link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
                 }
+                if should_add_libcharset(&link_args) {
+                    link_args.push("-lcharset".to_string());
+                }
                 if is_windows_msvc {
                     let new_content = link_args.join("\n");
                     let mut out = Vec::with_capacity((1 + new_content.len()) * 2);
@@ -255,14 +266,11 @@ impl Zig {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
         if is_macos {
+            if should_add_libcharset(cmd_args) {
+                new_cmd_args.push("-lcharset".to_string());
+            }
             let sdkroot = Self::macos_sdk_root();
             if (zig_version.major, zig_version.minor) >= (0, 12) {
-                // See https://github.com/apple-oss-distributions/libiconv/blob/a167071feb7a83a01b27ec8d238590c14eb6faff/xcodeconfig/libiconv.xcconfig
-                if cmd_args.iter().any(|x| x == "-liconv")
-                    && !cmd_args.iter().any(|x| x == "-lcharset")
-                {
-                    new_cmd_args.push("-lcharset".to_string());
-                }
                 // Looks like zig 0.12.0 requires passing `--sysroot`
                 if let Some(ref sdkroot) = sdkroot {
                     new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
