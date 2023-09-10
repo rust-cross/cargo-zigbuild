@@ -156,7 +156,7 @@ impl Zig {
                         .map(|x| x.starts_with("aarch64-macos"))
                         .unwrap_or_default()
                     {
-                        return Some(arg.replace("armv8-a", "apple_a14"));
+                        return Some(arg.replace("armv8-a", "apple_m1"));
                     } else if target
                         .map(|x| x.starts_with("aarch64-linux"))
                         .unwrap_or_default()
