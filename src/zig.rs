@@ -67,21 +67,16 @@ impl Zig {
         let target = cmd_args
             .iter()
             .position(|x| x == "-target")
-            .and_then(|index| cmd_args.get(index + 1));
-        let is_musl = target.map(|x| x.contains("musl")).unwrap_or_default();
-        let is_windows_gnu = target
-            .map(|x| x.contains("windows-gnu"))
-            .unwrap_or_default();
-        let is_windows_msvc = target
-            .map(|x| x.contains("windows-msvc"))
-            .unwrap_or_default();
-        let is_arm = target.map(|x| x.starts_with("arm")).unwrap_or_default();
-        let is_i386 = target.map(|x| x.starts_with("i386")).unwrap_or_default();
-        let is_riscv64 = target.map(|x| x.starts_with("riscv64")).unwrap_or_default();
-        let is_mips32 = target
-            .map(|x| x.starts_with("mips") && !x.starts_with("mips64"))
-            .unwrap_or_default();
-        let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
+            .and_then(|index| cmd_args.get(index + 1))
+            .context("Failed to determine compilation target triple")?;
+        let is_musl = target.contains("musl");
+        let is_windows_gnu = target.contains("windows-gnu");
+        let is_windows_msvc = target.contains("windows-msvc");
+        let is_arm = target.starts_with("arm");
+        let is_i386 = target.starts_with("i386");
+        let is_riscv64 = target.starts_with("riscv64");
+        let is_mips32 = target.starts_with("mips") && !target.starts_with("mips64");
+        let is_macos = target.contains("macos");
 
         let rustc_ver = rustc_version::version()?;
         let zig_version = Zig::zig_version()?;
@@ -152,15 +147,9 @@ impl Zig {
                 } else if is_riscv64 {
                     return Some("-march=generic_rv64".to_string());
                 } else if arg.starts_with("-march=armv8-a") {
-                    if target
-                        .map(|x| x.starts_with("aarch64-macos"))
-                        .unwrap_or_default()
-                    {
+                    if target.starts_with("aarch64-macos") {
                         return Some(arg.replace("armv8-a", "apple_m1"));
-                    } else if target
-                        .map(|x| x.starts_with("aarch64-linux"))
-                        .unwrap_or_default()
-                    {
+                    } else if target.starts_with("aarch64-linux") {
                         return Some(
                             arg.replace("armv8-a", "generic+v8a")
                                 .replace("simd", "neon"),
