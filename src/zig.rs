@@ -115,11 +115,12 @@ impl Zig {
                 } else if arg == "-Wl,--disable-auto-image-base"
                     || arg == "-Wl,--dynamicbase"
                     || arg == "-Wl,--large-address-aware"
+                    || arg == "-Wl,--exported_symbols_list"
                 {
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
                     // https://github.com/rust-lang/rust/blob/2fb0e8d162a021f8a795fb603f5d8c0017855160/compiler/rustc_target/src/spec/windows_gnu_base.rs#L22
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
-                    // zig doesn't support --disable-auto-image-base, --dynamicbase, and --large-address-aware
+                    // zig doesn't support --disable-auto-image-base, --dynamicbase, --large-address-aware and --exported_symbols_list
                     return None;
                 }
             } else if arg == "-Wl,--no-undefined-version" {
