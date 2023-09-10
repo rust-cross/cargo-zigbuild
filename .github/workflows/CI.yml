@@ -76,7 +76,7 @@ jobs:
         if: matrix.toolchain != '1.63.0'
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           git clone --recurse-submodules https://github.com/gyscos/zstd-rs.git tests/zstd-rs
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
@@ -97,7 +97,7 @@ jobs:
         env:
           SDK: MacOSX11.3.sdk
         run: |
-          set -e
+          set -euo pipefail
           curl -sqL https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/$SDK.tar.xz | tar -Jx
           export SDKROOT=$PWD/$SDK
 
@@ -127,7 +127,9 @@ jobs:
             ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild
             ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
       - name: Linux - Test glibc build
+        shell: bash
         run: |
+          set -euo pipefail
           cargo run zigbuild --target aarch64-unknown-linux-gnu
           cargo run zigbuild --target aarch64-unknown-linux-gnu.2.17
 
@@ -142,6 +144,7 @@ jobs:
       - name: Linux - Test glibc run/test
         if: matrix.os == 'ubuntu-latest'
         run: |
+          set -euo pipefail
           # Install qemu for `cargo-zigbuild run` support
           sudo apt-get update
           sudo apt-get install -y qemu-user qemu-user-static gcc-aarch64-linux-gnu binfmt-support
@@ -160,7 +163,9 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
       - name: Windows - Test gnu build
+        shell: bash
         run: |
+          set -euo pipefail
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
           cargo run zigbuild --target i686-pc-windows-gnu
@@ -171,7 +176,9 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml --features curl
       - name: Windows - Test run
         if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
+          set -euo pipefail
           ./target/x86_64-pc-windows-gnu/debug/cargo-zigbuild.exe zigbuild --help
           ./tests/hello-windows/target/x86_64-pc-windows-gnu/debug/hello-windows.exe
 
