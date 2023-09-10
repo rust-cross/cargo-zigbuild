@@ -787,6 +787,16 @@ impl Zig {
                 };
                 let deps_dir = target_dir.join(profile).join("deps");
                 fs::create_dir_all(&deps_dir)?;
+                if !target_dir.join("CACHEDIR.TAG").is_file() {
+                    // Create a CACHEDIR.TAG file to exclude target directory from backup
+                    let _ = fs::write(
+                        target_dir.join("CACHEDIR.TAG"),
+                        "Signature: 8a477f597d28d172789f06886806bc55
+# This file is a cache directory tag created by cargo.
+# For information about cache directory tags see https://bford.info/cachedir/
+",
+                    );
+                }
                 fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
                 fs::write(deps_dir.join("libcharset.1.tbd"), LIBCHARSET_TBD)?;
                 fs::write(deps_dir.join("libcharset.tbd"), LIBCHARSET_TBD)?;
