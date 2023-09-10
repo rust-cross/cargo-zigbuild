@@ -171,8 +171,8 @@ impl Zig {
                 }
             }
             if is_macos {
-                if arg.starts_with("-Wl,--exported_symbols_list,") {
-                    // zig doesn't support --exported_symbols_list arg
+                if arg.starts_with("-Wl,-exported_symbols_list,") {
+                    // zig doesn't support -exported_symbols_list arg
                     // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
                     return None;
                 }
