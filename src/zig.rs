@@ -176,6 +176,10 @@ impl Zig {
                     // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
                     return None;
                 }
+                if arg == "-Wl,-dylib" {
+                    // zig doesn't support -dylib
+                    return None;
+                }
             }
             Some(arg.to_string())
         };
