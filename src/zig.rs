@@ -104,7 +104,9 @@ impl Zig {
                     // zig doesn't provide gcc_eh alternative
                     // We use libc++ to replace it on windows gnu targets
                     return Some("-lc++".to_string());
-                } else if arg == "-Wl,-Bdynamic" && Self::is_zig_above_0_11_0(&zig_version) {
+                } else if arg == "-Wl,-Bdynamic"
+                    && (zig_version.major, zig_version.minor) >= (0, 11)
+                {
                     // https://github.com/ziglang/zig/pull/16058
                     // zig changes the linker behavior, -Bdynamic won't search *.a for mingw, but this may be fixed in the later version
                     // here is a workaround to replace the linker switch with -search_paths_first, which will search for *.dll,*lib first,
@@ -403,24 +405,11 @@ impl Zig {
             .iter()
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
             .collect::<Vec<&str>>();
-        let zig_version = Zig::zig_version()?;
         let rustc_meta = rustc_version::version_meta()?;
         let host_target = &rustc_meta.host;
         for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
             let env_target = parsed_target.replace('-', "_");
             let zig_wrapper = prepare_zig_linker(raw_target)?;
-
-            // as zig 0.11.0 is released, its musl has been upgraded to 1.2.4 with break changes
-            // but rust is still with musl 1.2.3
-            // we need this workaround until rust adopts new musl or removes LFS64 symbols
-            // https://github.com/ziglang/zig/pull/16098
-            if Self::is_zig_above_0_11_0(&zig_version) && raw_target.contains("musl") {
-                Self::add_env_if_missing(
-                    cmd,
-                    format!("CARGO_TARGET_{}_LINKER", env_target.to_uppercase()),
-                    "rust-lld",
-                )
-            }
 
             if is_mingw_shell() {
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
@@ -524,10 +513,6 @@ impl Zig {
             }
         }
         Ok(())
-    }
-
-    fn is_zig_above_0_11_0(zig_version: &semver::Version) -> bool {
-        zig_version >= &semver::Version::new(0, 11, 0)
     }
 
     /// Collects compiler options used by `zig cc` for given target.
@@ -1060,8 +1045,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let zig_linker_dir = cache_dir();
     fs::create_dir_all(&zig_linker_dir)?;
 
-    if triple.operating_system == OperatingSystem::Linux
-        && matches!(
+    if triple.operating_system == OperatingSystem::Linux {
+        if matches!(
             triple.environment,
             Environment::Gnu
                 | Environment::Gnuspe
@@ -1070,35 +1055,60 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 | Environment::Gnuabi64
                 | Environment::GnuIlp32
                 | Environment::Gnueabihf
-        )
-    {
-        let glibc_version = if abi_suffix.is_empty() {
-            (2, 17)
-        } else {
-            let mut parts = abi_suffix[1..].split('.');
-            let major: usize = parts.next().unwrap().parse()?;
-            let minor: usize = parts.next().unwrap().parse()?;
-            (major, minor)
-        };
-        // See https://github.com/ziglang/zig/issues/9485
-        if glibc_version < (2, 28) {
-            use crate::linux::{FCNTL_H, FCNTL_MAP};
+        ) {
+            let glibc_version = if abi_suffix.is_empty() {
+                (2, 17)
+            } else {
+                let mut parts = abi_suffix[1..].split('.');
+                let major: usize = parts.next().unwrap().parse()?;
+                let minor: usize = parts.next().unwrap().parse()?;
+                (major, minor)
+            };
+            // See https://github.com/ziglang/zig/issues/9485
+            if glibc_version < (2, 28) {
+                use crate::linux::{FCNTL_H, FCNTL_MAP};
+                use std::fmt::Write as _;
+
+                let zig_version = Zig::zig_version()?;
+                if zig_version.major == 0 && zig_version.minor < 11 {
+                    let fcntl_map = zig_linker_dir.join("fcntl.map");
+                    fs::write(&fcntl_map, FCNTL_MAP)?;
+                    let fcntl_h = zig_linker_dir.join("fcntl.h");
+                    fs::write(&fcntl_h, FCNTL_H)?;
+
+                    write!(
+                        cc_args,
+                        " -Wl,--version-script={} -include {}",
+                        fcntl_map.display(),
+                        fcntl_h.display()
+                    )
+                    .unwrap();
+                }
+            }
+        } else if matches!(
+            triple.environment,
+            Environment::Musl
+                | Environment::Muslabi64
+                | Environment::Musleabi
+                | Environment::Musleabihf
+        ) {
+            use crate::linux::MUSL_WEAK_SYMBOLS_MAPPING_SCRIPT;
             use std::fmt::Write as _;
 
             let zig_version = Zig::zig_version()?;
-            if zig_version.major == 0 && zig_version.minor < 11 {
-                let fcntl_map = zig_linker_dir.join("fcntl.map");
-                fs::write(&fcntl_map, FCNTL_MAP)?;
-                let fcntl_h = zig_linker_dir.join("fcntl.h");
-                fs::write(&fcntl_h, FCNTL_H)?;
+            let rustc_version = rustc_version::version_meta()?.semver;
 
-                write!(
-                    cc_args,
-                    " -Wl,--version-script={} -include {}",
-                    fcntl_map.display(),
-                    fcntl_h.display()
-                )
-                .unwrap();
+            // as zig 0.11.0 is released, its musl has been upgraded to 1.2.4 with break changes
+            // but rust is still with musl 1.2.3
+            // we need this workaround before rust 1.72
+            // https://github.com/ziglang/zig/pull/16098
+            if (zig_version.major, zig_version.minor) >= (0, 11)
+                && (rustc_version.major, rustc_version.minor) < (1, 72)
+            {
+                let weak_symbols_map = zig_linker_dir.join("musl_weak_symbols_map.ld");
+                fs::write(&weak_symbols_map, MUSL_WEAK_SYMBOLS_MAPPING_SCRIPT)?;
+
+                write!(cc_args, " -Wl,-T,{}", weak_symbols_map.display()).unwrap()
             }
         }
     }
