@@ -866,9 +866,10 @@ impl Zig {
             r#"
 set(CMAKE_SYSTEM_NAME {system_name})
 set(CMAKE_SYSTEM_PROCESSOR {system_processor})
-set(CMAKE_C_COMPILER {cc})
-set(CMAKE_CXX_COMPILER {cxx})
-set(CMAKE_RANLIB {ranlib})"#,
+set(CMAKE_C_COMPILER {cc} CACHE FILEPATH "")
+set(CMAKE_CXX_COMPILER {cxx} CACHE FILEPATH "")
+set(CMAKE_LINKER {cc} CACHE FILEPATH "")
+set(CMAKE_RANLIB {ranlib} CACHE FILEPATH "")"#,
             system_name = system_name,
             system_processor = system_processor,
             cc = zig_wrapper.cc.to_slash_lossy(),
@@ -877,7 +878,7 @@ set(CMAKE_RANLIB {ranlib})"#,
         );
         if enable_zig_ar {
             content.push_str(&format!(
-                "\nset(CMAKE_AR {})\n",
+                "\nset(CMAKE_AR {} CACHE FILEPATH \"\")\n",
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
