@@ -1,6 +1,6 @@
 [package]
 name = "cargo-zigbuild"
-version = "0.17.2"
+version = "0.17.3"
 edition = "2021"
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
@@ -14,7 +14,7 @@ rust-version = "1.63"
 [dependencies]
 anyhow = "1.0.53"
 cargo-options = "0.6.0"
-cargo_metadata = "0.17.0"
+cargo_metadata = "0.18.0"
 clap = { version = "4.0.0", features = ["derive", "env", "wrap_help"] }
 dirs = "5.0.0"
 fat-macho = { version = "0.4.6", default-features = false, optional = true }
