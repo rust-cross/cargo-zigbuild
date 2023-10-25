@@ -1,8 +1,8 @@
 use std::env;
+use std::ffi::OsString;
 use std::path::PathBuf;
+use std::process::Command;
 
-use anyhow::Context;
-use cargo_options::Metadata;
 use cargo_zigbuild::{Build, Check, Clippy, Install, Run, Rustc, Test, Zig};
 use clap::Parser;
 
@@ -18,8 +18,6 @@ pub enum Opt {
     Check(Check),
     #[command(name = "install")]
     Install(Install),
-    #[command(name = "metadata")]
-    Metadata(Metadata),
     #[command(name = "rustc")]
     Rustc(Rustc),
     #[command(name = "run", alias = "r")]
@@ -28,6 +26,8 @@ pub enum Opt {
     Test(Test),
     #[command(subcommand)]
     Zig(Zig),
+    #[command(external_subcommand)]
+    External(Vec<OsString>),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -58,16 +58,7 @@ fn main() -> anyhow::Result<()> {
                 install.enable_zig_ar = true;
                 install.execute()?
             }
-            Opt::Metadata(metadata) => {
-                let mut cmd = metadata.command();
-                let mut child = cmd.spawn().context("Failed to run cargo metadata")?;
-                let status = child
-                    .wait()
-                    .expect("Failed to wait on cargo metadata process");
-                if !status.success() {
-                    std::process::exit(status.code().unwrap_or(1));
-                }
-            }
+
             Opt::Rustc(mut rustc) => {
                 rustc.enable_zig_ar = true;
                 rustc.execute()?
@@ -81,6 +72,16 @@ fn main() -> anyhow::Result<()> {
                 test.execute()?
             }
             Opt::Zig(zig) => zig.execute()?,
+            Opt::External(args) => {
+                let mut child = Command::new(env::var_os("CARGO").unwrap_or("cargo".into()))
+                    .args(args)
+                    .env_remove("CARGO")
+                    .spawn()?;
+                let status = child.wait().expect("Failed to wait on cargo process");
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
+            }
         }
     }
     Ok(())
