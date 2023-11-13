@@ -90,6 +90,9 @@ impl Zig {
             if arg == "-lgcc_s" {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
+            } else if arg.starts_with("--target=") {
+                // We have already passed target via `-target`
+                return None;
             }
             if (is_arm || is_windows_gnu)
                 && arg.ends_with(".rlib")
