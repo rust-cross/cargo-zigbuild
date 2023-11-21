@@ -8,7 +8,12 @@ use clap::Parser;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
-#[command(version, name = "cargo-zigbuild", display_order = 1)]
+#[command(
+    version,
+    name = "cargo-zigbuild",
+    display_order = 1,
+    styles = cargo_options::styles(),
+)]
 pub enum Opt {
     #[command(name = "zigbuild", aliases = &["build", "b"] )]
     Build(Build),
