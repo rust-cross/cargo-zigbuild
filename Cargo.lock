@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-zigbuild"
-version = "0.18.1"
+version = "0.18.2"
 dependencies = [
  "anyhow",
  "cargo-options",
