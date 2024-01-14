@@ -120,7 +120,8 @@ impl Zig {
                 } else if arg == "-Wl,--disable-auto-image-base"
                     || arg == "-Wl,--dynamicbase"
                     || arg == "-Wl,--large-address-aware"
-                    || (arg.starts_with("-Wl,") && (arg.ends_with("/list.def") || arg.ends_with("\\list.def")))
+                    || (arg.starts_with("-Wl,")
+                        && (arg.ends_with("/list.def") || arg.ends_with("\\list.def")))
                 {
                     // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
                     // https://github.com/rust-lang/rust/blob/2fb0e8d162a021f8a795fb603f5d8c0017855160/compiler/rustc_target/src/spec/windows_gnu_base.rs#L22
