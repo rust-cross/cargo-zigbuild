@@ -32,12 +32,12 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-13, windows-latest]
-        toolchain: [1.67.0, stable, nightly]
+        toolchain: [1.70.0, stable, nightly]
         # Ideally we should also test against 0.9.0, but it is too unusable to test from CI
         zig: [0.10.1, 0.11.0, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.67.0
+          - toolchain: 1.70.0
             zig: master
     env:
       RUST_BACKTRACE: "1"
