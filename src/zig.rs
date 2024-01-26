@@ -513,7 +513,7 @@ impl Zig {
                     options.push("-DTARGET_OS_IPHONE=0".to_string());
                 }
 
-                let escaped_options = shlex::join(options.iter().map(|s| &s[..]));
+                let escaped_options = shlex::try_join(options.iter().map(|s| &s[..]))?;
 
                 // Override bindgen variables to append additional options
                 let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
@@ -523,7 +523,7 @@ impl Zig {
                     if let Ok(mut value) = env::var(&name).or(fallback_value.clone()) {
                         if shlex::split(&value).is_none() {
                             // bindgen treats the whole string as a single argument if split fails
-                            value = shlex::quote(&value).into_owned();
+                            value = shlex::try_quote(&value)?.into_owned();
                         }
                         if !value.is_empty() {
                             value.push(' ');
