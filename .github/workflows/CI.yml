@@ -72,8 +72,6 @@ jobs:
             x86_64-pc-windows-gnu \
             i686-pc-windows-gnu
       - name: Test bindgen
-        # skip on MSRV
-        if: matrix.toolchain != '1.70.0'
         shell: bash
         run: |
           set -e
