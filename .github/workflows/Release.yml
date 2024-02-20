@@ -87,13 +87,15 @@ jobs:
         run: |
           cd target/${{ matrix.platform.target }}/release
           7z a cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip cargo-zigbuild.exe
+          $sha256 = (Get-FileHash cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip -Algorithm SHA256).Hash.ToLower()
+          "$sha256  cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip" | Out-File cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip.sha256
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            target/${{ matrix.platform.target }}/release/cargo-zigbuild-*.zip
+            target/${{ matrix.platform.target }}/release/cargo-zigbuild-*.zip*
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
           generate_release_notes: true
 
