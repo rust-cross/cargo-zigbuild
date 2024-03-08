@@ -49,6 +49,16 @@ to compile for glibc 2.17 with the `aarch64-unknown-linux-gnu` target:
 cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 ```
 
+> [!NOTE]
+> There are [various caveats](https://github.com/rust-cross/cargo-zigbuild/issues/231#issuecomment-1983434802) with the glibc version targeting feature:
+> - If you do not provide a `--target`, Zig is not used and the command effectively runs a regular `cargo build`.
+> - If you specify an invalid glibc version, `cargo zigbuild` will not relay the warning emitted from `zig cc` about the fallback version selected.
+> - This feature does not necessarily match the behaviour of dynamically linking to a specific version of glibc on the build host.
+>   - Version 2.32 can be specified, but runs on a host with only 2.31 available when it should instead abort with an error.
+>   - Meanwhile specifying 2.33 will correctly be detected as incompatible when run on a host with glibc 2.31.
+> - Certain `RUSTFLAGS` like `-C linker` opt-out of using Zig, while `-L path/to/files` will have Zig ignore `-C target-feature=+crt-static`.
+> - `-C target-feature=+crt-static` for statically linking to a glibc version is **not supported** (_upstream `zig cc` lacks support_)
+
 ### macOS universal2 target
 
 `cargo zigbuild` supports a special `universal2-apple-darwin` target for building macOS universal2 binaries/libraries on Rust 1.64.0 and later.
