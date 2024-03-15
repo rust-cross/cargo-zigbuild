@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
 
-use cargo_zigbuild::{Build, Check, Clippy, Install, Run, Rustc, Test, Zig};
+use cargo_zigbuild::{Build, Check, Clippy, Doc, Install, Run, Rustc, Test, Zig};
 use clap::Parser;
 
 #[allow(clippy::large_enum_variant)]
@@ -21,6 +21,8 @@ pub enum Opt {
     Clippy(Clippy),
     #[command(name = "check", aliases = &["c"])]
     Check(Check),
+    #[command(name = "doc")]
+    Doc(Doc),
     #[command(name = "install")]
     Install(Install),
     #[command(name = "rustc")]
@@ -58,6 +60,10 @@ fn main() -> anyhow::Result<()> {
             Opt::Check(mut check) => {
                 check.enable_zig_ar = true;
                 check.execute()?
+            }
+            Opt::Doc(mut doc) => {
+                doc.enable_zig_ar = true;
+                doc.execute()?
             }
             Opt::Install(mut install) => {
                 install.enable_zig_ar = true;
