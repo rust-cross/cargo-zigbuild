@@ -22,7 +22,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           args: --release --out dist --strip --universal2
-          sccache: 'true'
+          # sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -70,7 +70,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --strip
-          sccache: 'true'
+          # sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -123,7 +123,7 @@ jobs:
           manylinux: auto
           container: off
           args: --release -o dist --strip
-          sccache: 'true'
+          # sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
