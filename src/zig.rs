@@ -138,6 +138,9 @@ impl Zig {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
                 if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
                     return None;
+                } else if arg == "-Wl,-melf_i386" {
+                    // unsupported linker arg: -melf_i386
+                    return None;
                 }
                 if rustc_ver.major == 1
                     && rustc_ver.minor < 59
