@@ -43,7 +43,7 @@ jobs:
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             target/release/cargo-zigbuild*.tar.gz*
@@ -92,7 +92,7 @@ jobs:
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             target/${{ matrix.platform.target }}/release/cargo-zigbuild-*.zip*
@@ -144,7 +144,7 @@ jobs:
           cd -
       - name: Upload binary to GitHub Release
         if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             target/${{ matrix.platform.target }}/release/cargo-zigbuild*.tar.gz*
