@@ -561,7 +561,9 @@ impl Zig {
         fn collect_per_language_options(program: &Path, ext: &str) -> Result<PerLanguageOptions> {
             // We can't use `-x c` or `-x c++` because pre-0.11 Zig doesn't handle them
             let empty_file_path = cache_dir().join(format!(".intentionally-empty-file.{ext}"));
-            fs::write(&empty_file_path, "")?;
+            if !empty_file_path.exists() {
+                fs::write(&empty_file_path, "")?;
+            }
 
             let output = Command::new(program)
                 .arg("-E")
@@ -821,7 +823,8 @@ impl Zig {
                         .join("sysdeps")
                         .join("arm")
                         .join("arm-features.h");
-                    if !arm_features_h.is_file() {
+                    let existing_content = fs::read_to_string(&arm_features_h).unwrap_or_default();
+                    if existing_content != ARM_FEATURES_H {
                         fs::write(arm_features_h, ARM_FEATURES_H)?;
                     }
                 }
@@ -889,7 +892,10 @@ set(CMAKE_RANLIB {ranlib})"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
-        fs::write(&toolchain_file, content)?;
+        let existing_content = fs::read_to_string(&toolchain_file).unwrap_or_default();
+        if existing_content != content {
+            fs::write(&toolchain_file, content)?;
+        }
         Ok(toolchain_file)
     }
 
@@ -964,7 +970,7 @@ pub struct ZigWrapper {
 ///
 /// We create different files for different args because otherwise cargo might skip recompiling even
 /// if the linker target changed
-#[allow(clippy::blocks_in_if_conditions)]
+#[allow(clippy::blocks_in_conditions)]
 pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
@@ -1102,9 +1108,15 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 let zig_version = Zig::zig_version()?;
                 if zig_version.major == 0 && zig_version.minor < 11 {
                     let fcntl_map = zig_linker_dir.join("fcntl.map");
-                    fs::write(&fcntl_map, FCNTL_MAP)?;
+                    let existing_content = fs::read_to_string(&fcntl_map).unwrap_or_default();
+                    if existing_content != FCNTL_MAP {
+                        fs::write(&fcntl_map, FCNTL_MAP)?;
+                    }
                     let fcntl_h = zig_linker_dir.join("fcntl.h");
-                    fs::write(&fcntl_h, FCNTL_H)?;
+                    let existing_content = fs::read_to_string(&fcntl_h).unwrap_or_default();
+                    if existing_content != FCNTL_H {
+                        fs::write(&fcntl_h, FCNTL_H)?;
+                    }
 
                     write!(
                         cc_args,
@@ -1195,32 +1207,41 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
 /// Write a zig cc wrapper batch script for unix
 #[cfg(target_family = "unix")]
 fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
-    let mut custom_linker_file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(0o700)
-        .open(path)?;
+    let mut buf = Vec::<u8>::new();
     let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
     } else {
         env::current_exe()?
     };
-    writeln!(&mut custom_linker_file, "#!/bin/sh")?;
+    writeln!(&mut buf, "#!/bin/sh")?;
     writeln!(
-        &mut custom_linker_file,
+        &mut buf,
         "exec \"{}\" zig {} -- {} \"$@\"",
         current_exe.display(),
         command,
         args
     )?;
+
+    // Try not to write the file again if it's already the same.
+    // This is more friendly for cache systems like ccache, which by default
+    // uses mtime to determine if a recompilation is needed.
+    let existing_content = fs::read(path).unwrap_or_default();
+    if existing_content != buf {
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .mode(0o700)
+            .open(path)?
+            .write_all(&buf)?;
+    }
     Ok(())
 }
 
 /// Write a zig cc wrapper batch script for windows
 #[cfg(not(target_family = "unix"))]
 fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
-    let mut custom_linker_file = fs::File::create(path)?;
+    let mut buf = Vec::<u8>::new();
     let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
     } else {
@@ -1232,12 +1253,17 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         current_exe.display().to_string()
     };
     writeln!(
-        &mut custom_linker_file,
+        &mut buf,
         "{} zig {} -- {} %*",
         adjust_canonicalization(current_exe),
         command,
         args
     )?;
+
+    let existing_content = fs::read(path).unwrap_or_default();
+    if existing_content != buf {
+        fs::write(path, buf)?;
+    }
     Ok(())
 }
 
