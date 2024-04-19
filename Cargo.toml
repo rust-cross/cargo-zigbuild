@@ -7,7 +7,7 @@ license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/rust-cross/cargo-zigbuild"
-rust-version = "1.70"
+rust-version = "1.74"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
