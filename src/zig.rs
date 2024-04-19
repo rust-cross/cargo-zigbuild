@@ -1196,7 +1196,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                     }
 
                     cc_args.push(format!("-Wl,--version-script={}", fcntl_map.display()));
-                    cc_args.push(format!("-include={}", fcntl_h.display()));
+                    cc_args.push(format!("-include {}", fcntl_h.display()));
                 }
             }
         } else if matches!(
