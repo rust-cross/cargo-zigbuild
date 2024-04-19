@@ -82,6 +82,34 @@ jobs:
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-apple-darwin
+      - name: Test RUSTFLAGS
+        shell: bash
+        run: |
+          set -e
+          cargo install x86-instruction-set-analyzer --version 0.1.0
+          cargo build  # Build without RUSTFLAGS
+
+          export RUSTFLAGS="-C target_cpu=x86-64"
+          target/debug/cargo-zigbuild zigbuild --manifest-path tests/target-cpu/Cargo.toml --target x86_64-unknown-linux-gnu --release
+          x86-instruction-set-analyzer tests/target-cpu/target/x86_64-unknown-linux-gnu/release/target-cpu | tee output.txt
+          grep 'AVX2' output.txt &> /dev/null
+          if [ $? == 0 ]; then
+            echo "Test fail, should not contain AVX2 instruction set in target_cpu=x86-64"
+            false
+          else
+            echo "Test pass"
+          fi
+
+          export RUSTFLAGS="-C target_cpu=x86-64-v4"
+          target/debug/cargo-zigbuild zigbuild --manifest-path tests/target-cpu/Cargo.toml --target x86_64-unknown-linux-gnu --release
+          x86-instruction-set-analyzer tests/target-cpu/target/x86_64-unknown-linux-gnu/release/target-cpu | tee output.txt
+          grep 'AVX2' output.txt &> /dev/null
+          if [ $? = 0 ]; then
+            echo "Test pass"
+          else
+            echo "Test fail, should contain AVX2 instruction set in target_cpu=x86-64-v4"
+            false
+          fi
       - name: macOS - Test build
         run: |
           cargo run zigbuild --target aarch64-apple-darwin

@@ -962,6 +962,43 @@ pub struct ZigWrapper {
     pub ranlib: PathBuf,
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+struct TargetFlags {
+    pub target_cpu: String,
+    pub target_feature: String,
+}
+
+impl TargetFlags {
+    pub fn parse_from_encoded(encoded: &OsStr) -> Result<Self> {
+        let mut parsed = Self::default();
+
+        let f = rustflags::from_encoded(encoded);
+        for flag in f {
+            if let rustflags::Flag::Codegen { opt, value } = flag {
+                let key = opt.replace('-', "_");
+                match key.as_str() {
+                    "target_cpu" => {
+                        if let Some(value) = value {
+                            parsed.target_cpu = value;
+                        }
+                    }
+                    "target_feature" => {
+                        // See https://github.com/rust-lang/rust/blob/7e3ba5b8b7556073ab69822cc36b93d6e74cd8c9/compiler/rustc_session/src/options.rs#L1233
+                        if let Some(value) = value {
+                            if !parsed.target_feature.is_empty() {
+                                parsed.target_feature.push(',');
+                            }
+                            parsed.target_feature.push_str(&value);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(parsed)
+    }
+}
+
 /// Prepare wrapper scripts for `zig cc` and `zig c++` and returns their paths
 ///
 /// We want to use `zig cc` as linker and c compiler. We want to call `python -m ziglang cc`, but
@@ -1002,52 +1039,87 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     };
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let file_target = target.trim_end_matches('.');
-    let zig_cc = format!("zigcc-{file_target}.{file_ext}");
-    let zig_cxx = format!("zigcxx-{file_target}.{file_ext}");
-    let cc_args = "-g"; // prevent stripping
-    let mut cc_args = match triple.operating_system {
+
+    let mut cc_args = vec!["-g".to_owned()]; // prevent stripping
+
+    // TODO: Maybe better to assign mcpu according to:
+    // rustc --target <target> -Z unstable-options --print target-spec-json
+    let zig_mcpu_default = match triple.operating_system {
         OperatingSystem::Linux => {
-            let (zig_arch, zig_cpu) = match arch.as_str() {
+            match arch.as_str() {
                 // zig uses _ instead of - in cpu features
                 "arm" => match target_env {
-                    Environment::Gnueabi | Environment::Musleabi => {
-                        ("arm", "-mcpu=generic+v6+strict_align")
-                    }
+                    Environment::Gnueabi | Environment::Musleabi => "generic+v6+strict_align",
                     Environment::Gnueabihf | Environment::Musleabihf => {
-                        ("arm", "-mcpu=generic+v6+strict_align+vfp2-d32")
+                        "generic+v6+strict_align+vfp2-d32"
                     }
-                    _ => ("arm", ""),
+                    _ => "",
                 },
-                "armv5te" => ("arm", "-mcpu=generic+soft_float+strict_align"),
-                "armv7" => ("arm", "-mcpu=generic+v7a+vfp3-d32+thumb2-neon"),
+                "armv5te" => "generic+soft_float+strict_align",
+                "armv7" => "generic+v7a+vfp3-d32+thumb2-neon",
                 arch_str @ ("i586" | "i686") => {
-                    let cpu_arg = if arch_str == "i586" {
-                        "-mcpu=pentium"
+                    if arch_str == "i586" {
+                        "pentium"
                     } else {
-                        "-mcpu=pentium4"
-                    };
+                        "pentium4"
+                    }
+                }
+                "riscv64gc" => "generic_rv64+m+a+f+d+c",
+                "s390x" => "z10-vector",
+                _ => "",
+            }
+        }
+        _ => "",
+    };
+
+    // Override mcpu from RUSTFLAGS if provided. The override happens when
+    // commands like `cargo-zigbuild build` are invoked.
+    // Currently we only override according to target_cpu.
+    let zig_mcpu_override = {
+        let cargo_config = cargo_config2::Config::load()?;
+        let rust_flags = cargo_config.rustflags(rust_target)?.unwrap_or_default();
+        let encoded_rust_flags = rust_flags.encode()?;
+        let target_flags = TargetFlags::parse_from_encoded(OsStr::new(&encoded_rust_flags))?;
+        // Note: zig uses _ instead of - for target_cpu and target_feature
+        // target_cpu may be empty string, which means target_cpu is not specified.
+        target_flags.target_cpu.replace('-', "_")
+    };
+
+    if !zig_mcpu_override.is_empty() {
+        cc_args.push(format!("-mcpu={zig_mcpu_override}"));
+    } else if !zig_mcpu_default.is_empty() {
+        cc_args.push(format!("-mcpu={zig_mcpu_default}"));
+    }
+
+    match triple.operating_system {
+        OperatingSystem::Linux => {
+            let zig_arch = match arch.as_str() {
+                // zig uses _ instead of - in cpu features
+                "arm" => "arm",
+                "armv5te" => "arm",
+                "armv7" => "arm",
+                "i586" | "i686" => {
                     let zig_version = Zig::zig_version()?;
-                    let zig_arch = if zig_version.major == 0 && zig_version.minor >= 11 {
+                    if zig_version.major == 0 && zig_version.minor >= 11 {
                         "x86"
                     } else {
                         "i386"
-                    };
-                    (zig_arch, cpu_arg)
+                    }
                 }
-                "riscv64gc" => ("riscv64", "-mcpu=generic_rv64+m+a+f+d+c"),
-                "s390x" => ("s390x", "-mcpu=z10-vector"),
-                _ => (arch.as_str(), ""),
+                "riscv64gc" => "riscv64",
+                "s390x" => "s390x",
+                _ => arch.as_str(),
             };
-            format!("-target {zig_arch}-linux-{target_env}{abi_suffix} {zig_cpu} {cc_args}",)
+            cc_args.push(format!("-target {zig_arch}-linux-{target_env}{abi_suffix}"));
         }
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
             let zig_version = Zig::zig_version()?;
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
             if zig_version > semver::Version::new(0, 9, 1) {
-                format!("-target {arch}-macos-none{abi_suffix} {cc_args}")
+                cc_args.push(format!("-target {arch}-macos-none{abi_suffix}"));
             } else {
-                format!("-target {arch}-macos-gnu{abi_suffix} {cc_args}")
+                cc_args.push(format!("-target {arch}-macos-gnu{abi_suffix}"));
             }
         }
         OperatingSystem::Windows { .. } => {
@@ -1062,15 +1134,21 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 }
                 arch => arch,
             };
-            format!("-target {zig_arch}-windows-{target_env}{abi_suffix} {cc_args}",)
+            cc_args.push(format!(
+                "-target {zig_arch}-windows-{target_env}{abi_suffix}"
+            ));
         }
-        OperatingSystem::Emscripten => format!("-target {arch}-emscripten{abi_suffix} {cc_args}"),
-        OperatingSystem::Wasi => format!("-target {arch}-wasi{abi_suffix} {cc_args}"),
+        OperatingSystem::Emscripten => {
+            cc_args.push(format!("-target {arch}-emscripten{abi_suffix}"));
+        }
+        OperatingSystem::Wasi => {
+            cc_args.push(format!("-target {arch}-wasi{abi_suffix}"));
+        }
         OperatingSystem::Unknown => {
             if triple.architecture == Architecture::Wasm32
                 || triple.architecture == Architecture::Wasm64
             {
-                format!("-target {arch}-freestanding{abi_suffix} {cc_args}")
+                cc_args.push(format!("-target {arch}-freestanding{abi_suffix}"));
             } else {
                 bail!("unsupported target '{rust_target}'")
             }
@@ -1103,7 +1181,6 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
             // See https://github.com/ziglang/zig/issues/9485
             if glibc_version < (2, 28) {
                 use crate::linux::{FCNTL_H, FCNTL_MAP};
-                use std::fmt::Write as _;
 
                 let zig_version = Zig::zig_version()?;
                 if zig_version.major == 0 && zig_version.minor < 11 {
@@ -1118,13 +1195,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                         fs::write(&fcntl_h, FCNTL_H)?;
                     }
 
-                    write!(
-                        cc_args,
-                        " -Wl,--version-script={} -include {}",
-                        fcntl_map.display(),
-                        fcntl_h.display()
-                    )
-                    .unwrap();
+                    cc_args.push(format!("-Wl,--version-script={}", fcntl_map.display()));
+                    cc_args.push(format!("-include={}", fcntl_h.display()));
                 }
             }
         } else if matches!(
@@ -1135,7 +1207,6 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 | Environment::Musleabihf
         ) {
             use crate::linux::MUSL_WEAK_SYMBOLS_MAPPING_SCRIPT;
-            use std::fmt::Write as _;
 
             let zig_version = Zig::zig_version()?;
             let rustc_version = rustc_version::version_meta()?.semver;
@@ -1150,16 +1221,18 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 let weak_symbols_map = zig_linker_dir.join("musl_weak_symbols_map.ld");
                 fs::write(&weak_symbols_map, MUSL_WEAK_SYMBOLS_MAPPING_SCRIPT)?;
 
-                write!(cc_args, " -Wl,-T,{}", weak_symbols_map.display()).unwrap()
+                cc_args.push(format!("-Wl,-T,{}", weak_symbols_map.display()));
             }
         }
     }
 
-    let zig_cc = zig_linker_dir.join(zig_cc);
-    let zig_cxx = zig_linker_dir.join(zig_cxx);
+    let cc_args_str = cc_args.join(" ");
+    let hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC).checksum(cc_args_str.as_bytes());
+    let zig_cc = zig_linker_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
+    let zig_cxx = zig_linker_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
     let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{file_ext}"));
-    write_linker_wrapper(&zig_cc, "cc", &cc_args)?;
-    write_linker_wrapper(&zig_cxx, "c++", &cc_args)?;
+    write_linker_wrapper(&zig_cc, "cc", &cc_args_str)?;
+    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str)?;
     write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
@@ -1290,4 +1363,48 @@ fn python_path() -> Result<PathBuf> {
 fn zig_path() -> Result<PathBuf> {
     let zig = env::var("CARGO_ZIGBUILD_ZIG_PATH").unwrap_or_else(|_| "zig".to_string());
     Ok(which::which(zig)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_target_flags() {
+        let cases = [
+            // Input, TargetCPU, TargetFeature
+            ("-C target-feature=-crt-static", "", "-crt-static"),
+            ("-C target-cpu=native", "native", ""),
+            (
+                "--deny warnings --codegen target-feature=+crt-static",
+                "",
+                "+crt-static",
+            ),
+            ("-C target_cpu=skylake-avx512", "skylake-avx512", ""),
+            ("-Ctarget_cpu=x86-64-v3", "x86-64-v3", ""),
+            (
+                "-C target-cpu=native --cfg foo -C target-feature=-avx512bf16,-avx512bitalg",
+                "native",
+                "-avx512bf16,-avx512bitalg",
+            ),
+            (
+                "--target x86_64-unknown-linux-gnu --codegen=target-cpu=x --codegen=target-cpu=x86-64",
+                "x86-64",
+                "",
+            ),
+            (
+                "-Ctarget-feature=+crt-static -Ctarget-feature=+avx",
+                "",
+                "+crt-static,+avx",
+            ),
+        ];
+
+        for (input, expected_target_cpu, expected_target_feature) in cases.iter() {
+            let args = cargo_config2::Flags::from_space_separated(input);
+            let encoded_rust_flags = args.encode().unwrap();
+            let flags = TargetFlags::parse_from_encoded(OsStr::new(&encoded_rust_flags)).unwrap();
+            assert_eq!(flags.target_cpu, *expected_target_cpu, "{}", input);
+            assert_eq!(flags.target_feature, *expected_target_feature, "{}", input);
+        }
+    }
 }
