@@ -82,11 +82,14 @@ jobs:
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-apple-darwin
+      - name: Install x86-instruction-set-analyzer
+        uses: taiki-e/install-action@v2
+        with:
+          tool: x86-instruction-set-analyzer@0.1.0
       - name: Test RUSTFLAGS
         shell: bash
         run: |
           set -e
-          cargo install x86-instruction-set-analyzer --version 0.1.0
           cargo build  # Build without RUSTFLAGS
 
           echo "Running -C target_cpu=x86-64..."
