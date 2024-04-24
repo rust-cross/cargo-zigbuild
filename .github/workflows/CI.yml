@@ -32,11 +32,11 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-13, windows-latest]
-        toolchain: [1.70.0, stable, nightly]
+        toolchain: [1.74.0, stable, nightly]
         zig: [0.10.1, 0.12.0, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.70.0
+          - toolchain: 1.74.0
             zig: master
     env:
       RUST_BACKTRACE: "1"
@@ -81,6 +81,41 @@ jobs:
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-unknown-linux-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-apple-darwin
+      - name: Install x86-instruction-set-analyzer
+        uses: taiki-e/install-action@v2
+        with:
+          tool: x86-instruction-set-analyzer@0.1.0
+      - name: Test RUSTFLAGS
+        shell: bash
+        run: |
+          set -e
+          cargo build  # Build without RUSTFLAGS
+
+          echo "Running -C target_cpu=x86-64..."
+          echo
+          export RUSTFLAGS="-C target_cpu=x86-64"
+          target/debug/cargo-zigbuild zigbuild --manifest-path tests/target-cpu/Cargo.toml --target x86_64-unknown-linux-gnu --release
+          x86-instruction-set-analyzer tests/target-cpu/target/x86_64-unknown-linux-gnu/release/target-cpu | tee output.txt
+          echo
+          if grep -q 'AVX2' output.txt; then
+            echo "Test fail, should not contain AVX2 instruction set"
+            false
+          else
+            echo "Test pass"
+          fi
+
+          echo "Running -C target_cpu=x86-64-v4..."
+          echo
+          export RUSTFLAGS="-C target_cpu=x86-64-v4"
+          target/debug/cargo-zigbuild zigbuild --manifest-path tests/target-cpu/Cargo.toml --target x86_64-unknown-linux-gnu --release
+          x86-instruction-set-analyzer tests/target-cpu/target/x86_64-unknown-linux-gnu/release/target-cpu | tee output.txt
+          echo
+          if ! grep -q 'AVX2' output.txt; then
+            echo "Test fail, should contain AVX2 instruction set"
+            false
+          else
+            echo "Test pass"
+          fi
       - name: macOS - Test build
         run: |
           cargo run zigbuild --target aarch64-apple-darwin
