@@ -721,6 +721,7 @@ impl Zig {
         args.push("-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
         args.push("-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
         args.push("-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS".to_owned());
+        args.push("-D_LIBCPP_PSTL_CPU_BACKEND_SERIAL".to_owned());
         args.push("-D_LIBCPP_ABI_VERSION=1".to_owned());
         args.push("-D_LIBCPP_ABI_NAMESPACE=__1".to_owned());
         if let Some(ver) = c_opts.glibc_minor_ver {
