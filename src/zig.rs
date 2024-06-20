@@ -724,6 +724,7 @@ impl Zig {
         args.push("-D_LIBCPP_PSTL_CPU_BACKEND_SERIAL".to_owned());
         args.push("-D_LIBCPP_ABI_VERSION=1".to_owned());
         args.push("-D_LIBCPP_ABI_NAMESPACE=__1".to_owned());
+        args.push("-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST".to_owned());
         if let Some(ver) = c_opts.glibc_minor_ver {
             // Handled separately because we have no way to infer this without Zig
             args.push(format!("-D__GLIBC_MINOR__={ver}"));
