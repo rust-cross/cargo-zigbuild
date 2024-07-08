@@ -825,8 +825,7 @@ impl Zig {
                         .join("sysdeps")
                         .join("arm")
                         .join("arm-features.h");
-                    let existing_content = fs::read_to_string(&arm_features_h).unwrap_or_default();
-                    if existing_content != ARM_FEATURES_H {
+                    if !arm_features_h.is_file() {
                         fs::write(arm_features_h, ARM_FEATURES_H)?;
                     }
                 }
