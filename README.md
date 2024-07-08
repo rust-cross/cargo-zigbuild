@@ -14,7 +14,7 @@ Compile Cargo project with [zig](https://github.com/ziglang/zig) as [linker](htt
 ## Installation
 
 ```bash
-cargo install cargo-zigbuild
+cargo install --locked cargo-zigbuild
 ```
 
 You can also install it using pip which will also install [`ziglang`](https://pypi.org/project/ziglang/) automatically:
