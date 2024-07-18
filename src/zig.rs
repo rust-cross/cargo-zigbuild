@@ -82,6 +82,7 @@ impl Zig {
             .map(|x| x.starts_with("mips") && !x.starts_with("mips64"))
             .unwrap_or_default();
         let is_macos = target.map(|x| x.contains("macos")).unwrap_or_default();
+        let is_ohos = target.map(|x| x.contains("ohos")).unwrap_or_default();
 
         let rustc_ver = rustc_version::version()?;
         let zig_version = Zig::zig_version()?;
@@ -134,7 +135,7 @@ impl Zig {
                 // zig doesn't support --no-undefined-version
                 return None;
             }
-            if is_musl {
+            if is_musl || is_ohos {
                 // Avoids duplicated symbols with both zig musl libc and the libc crate
                 if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
                     return None;
@@ -558,7 +559,11 @@ impl Zig {
             include_paths: Vec<(Kind, String)>,
         }
 
-        fn collect_per_language_options(program: &Path, ext: &str) -> Result<PerLanguageOptions> {
+        fn collect_per_language_options(
+            program: &Path,
+            ext: &str,
+            raw_target: &str,
+        ) -> Result<PerLanguageOptions> {
             // We can't use `-x c` or `-x c++` because pre-0.11 Zig doesn't handle them
             let empty_file_path = cache_dir().join(format!(".intentionally-empty-file.{ext}"));
             if !empty_file_path.exists() {
@@ -616,14 +621,20 @@ impl Zig {
                 }
             }
 
+            // In openharmony, we should add search header path by default which is useful for bindgen.
+            if raw_target.contains("ohos") {
+                let ndk = env::var("OHOS_NDK_HOME").expect("Can't get NDK path");
+                include_paths.push((Kind::Normal, format!("{}/native/sysroot/usr/include", ndk)));
+            }
+
             Ok(PerLanguageOptions {
                 include_paths,
                 glibc_minor_ver,
             })
         }
 
-        let c_opts = collect_per_language_options(&zig_wrapper.cc, "c")?;
-        let cpp_opts = collect_per_language_options(&zig_wrapper.cxx, "cpp")?;
+        let c_opts = collect_per_language_options(&zig_wrapper.cc, "c", raw_target)?;
+        let cpp_opts = collect_per_language_options(&zig_wrapper.cxx, "cpp", raw_target)?;
 
         // Ensure that `c_opts` and `cpp_opts` are almost identical in the way we expect.
         if c_opts.glibc_minor_ver != cpp_opts.glibc_minor_ver {
@@ -715,8 +726,11 @@ impl Zig {
         // https://github.com/ziglang/zig/blob/0.9.1/src/Compilation.zig#L3408-L3445
         // https://github.com/ziglang/zig/blob/0.10.0/src/Compilation.zig#L4163-L4211
         // https://github.com/ziglang/zig/blob/0.10.1/src/Compilation.zig#L4240-L4288
-        if raw_target.contains("musl") {
+        if raw_target.contains("musl") || raw_target.contains("ohos") {
             args.push("-D_LIBCPP_HAS_MUSL_LIBC".to_owned());
+            // for musl or openharmony
+            // https://github.com/ziglang/zig/pull/16098
+            args.push("-D_LARGEFILE64_SOURCE".to_owned());
         }
         args.push("-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
         args.push("-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
