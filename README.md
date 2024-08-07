@@ -75,7 +75,7 @@ cargo zigbuild --target universal2-apple-darwin
 
 ## Caveats
 
-1. Currently only Linux, macOS and Windows gnu targets are supported,
+1. Currently only Linux and macOS targets are supported,
    other target platforms can be added if you can make it work,
    pull requests are welcome.
 2. Only current Rust **stable** and **nightly** versions are regularly tested on CI, other versions may not work.
