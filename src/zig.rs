@@ -87,7 +87,13 @@ impl Zig {
         let rustc_ver = rustc_version::version()?;
         let zig_version = Zig::zig_version()?;
 
-        let filter_linker_arg = |arg: &str| {
+        let mut skip_next_arg = false;
+        let mut filter_linker_arg = |arg: &str| {
+            if skip_next_arg {
+                skip_next_arg = false;
+                return None;
+            }
+
             if arg == "-lgcc_s" {
                 // Replace libgcc_s with libunwind
                 return Some("-lunwind".to_string());
@@ -184,6 +190,10 @@ impl Zig {
                     // zig doesn't support -exported_symbols_list arg
                     // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
                     return None;
+                } else if arg.starts_with("-Wl,-exported_symbols_list") {
+                    // This variant passes the list file as the next argument, skip it
+                    skip_next_arg = true;
+                    return None;
                 }
                 if arg == "-Wl,-dylib" {
                     // zig doesn't support -dylib
@@ -240,8 +250,10 @@ impl Zig {
                         )
                     })?
                 };
-                let mut link_args: Vec<_> =
-                    content.split('\n').filter_map(filter_linker_arg).collect();
+                let mut link_args: Vec<_> = content
+                    .split('\n')
+                    .filter_map(&mut filter_linker_arg)
+                    .collect();
                 if has_undefined_dynamic_lookup(&link_args) {
                     link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
                 }
