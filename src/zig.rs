@@ -136,7 +136,7 @@ impl Zig {
                     // zig doesn't support --disable-auto-image-base, --dynamicbase and --large-address-aware
                     return None;
                 } else if arg == "-lmsvcrt" {
-                    return Some("-lmsvcrt-os".to_owned());
+                    return None;
                 }
             } else if arg == "-Wl,--no-undefined-version" {
                 // https://github.com/rust-lang/rust/blob/542ed2bf72b232b245ece058fc11aebb1ca507d7/compiler/rustc_codegen_ssa/src/back/linker.rs#L723
