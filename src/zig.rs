@@ -108,9 +108,6 @@ impl Zig {
                     // zig doesn't provide gcc_eh alternative
                     // We use libc++ to replace it on windows gnu targets
                     return Some("-lc++".to_string());
-                } else if arg == "-lmsvcrt" {
-                    // avoid error: unable to find dynamic system library 'msvcrt'
-                    return None;
                 } else if arg == "-Wl,-Bdynamic"
                     && (zig_version.major, zig_version.minor) >= (0, 11)
                 {
