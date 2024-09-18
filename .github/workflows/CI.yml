@@ -136,7 +136,7 @@ jobs:
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-tls/Cargo.toml
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-rustls/Cargo.toml
       - name: macOS - Test build bindgen with SDKROOT
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain != '1.67.0' }}
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain != '1.74.0' }}
         env:
           SDK: MacOSX11.3.sdk
         run: cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
