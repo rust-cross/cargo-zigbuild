@@ -1412,7 +1412,7 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     };
     writeln!(
         &mut buf,
-        "{} zig {} -- {} %*",
+        "\"{}\" zig {} -- {} %*",
         adjust_canonicalization(current_exe),
         command,
         args
