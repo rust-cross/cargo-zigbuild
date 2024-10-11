@@ -1229,6 +1229,9 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         OperatingSystem::Wasi => {
             cc_args.push(format!("-target {arch}-wasi{abi_suffix}"));
         }
+        OperatingSystem::WasiP1 => {
+            cc_args.push(format!("-target {arch}-wasi.0.1.0{abi_suffix}"));
+        }
         OperatingSystem::Unknown => {
             if triple.architecture == Architecture::Wasm32
                 || triple.architecture == Architecture::Wasm64
