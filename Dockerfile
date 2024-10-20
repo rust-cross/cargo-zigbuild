@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.79.0
+ARG RUST_VERSION=1.82.0
 
 FROM rust:$RUST_VERSION as builder
 
@@ -39,6 +39,7 @@ RUN rustup target add \
     arm-unknown-linux-musleabihf \
     x86_64-apple-darwin \
     aarch64-apple-darwin \
-    x86_64-pc-windows-gnu
+    x86_64-pc-windows-gnu \
+    aarch64-pc-windows-gnullvm
 
 COPY --from=builder /cargo-zigbuild/target/release/cargo-zigbuild /usr/local/cargo/bin/
