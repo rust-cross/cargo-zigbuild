@@ -1,0 +1,60 @@
+ARG RUST_VERSION=1.82.0
+ARG ZIG_VERSION=0.10.1
+
+# --- Download Zig and macOS SDK --- #
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022 as zig-and-macos-sdk
+ARG ZIG_VERSION
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+RUN Invoke-WebRequest "https://ziglang.org/download/$env:ZIG_VERSION/zig-windows-x86_64-$env:ZIG_VERSION.zip" -OutFile zig.zip; \
+    Invoke-WebRequest 'https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.3.sdk.tar.xz' -OutFile sdk.tar.xz; \
+    Invoke-WebRequest https://www.7-zip.org/a/7z2408-x64.exe -OutFile 7z-setup.exe; 
+RUN .\7z-setup.exe /S /D="C:";
+RUN .\7z.exe -y -oC: x zig.zip; Rename-Item .\zig-windows-x86_64-$env:ZIG_VERSION .\zig;
+RUN .\7z.exe e .\sdk.tar.xz; & .\7z.exe -y -oC: x .\sdk.tar; Rename-Item .\MacOSX11.3.sdk .\sdk;
+
+# --- Download and setup Rust --- #
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022 as rust-windows
+ARG RUST_VERSION
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+# Default host is set to x86_64-pc-windows-gnu to avoid MSVC which requires VS Build Tools
+## Also, cargo-zigbuild can compile for x86_64-pc-windows-gnu, so we don't need MSVC anyway
+RUN Invoke-WebRequest https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe -OutFile rustup-init.exe; \
+    .\rustup-init.exe -y --default-toolchain $env:RUST_VERSION --default-host x86_64-pc-windows-gnu; \
+    Remove-Item -Path .\rustup-init.exe -Force;
+
+# --- Build cargo-zigbuild --- #
+
+FROM rust-windows as builder
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+# Compile dependencies only for build caching
+ADD Cargo.toml /cargo-zigbuild/Cargo.toml
+ADD Cargo.lock /cargo-zigbuild/Cargo.lock
+RUN New-Item -Path .\cargo-zigbuild -Name src -ItemType Directory; \
+    New-Item -Path .\cargo-zigbuild\src -Name lib.rs -Value \"`n\" -ItemType File; \
+    cargo build --manifest-path .\cargo-zigbuild\Cargo.toml --release
+# Build cargo-zigbuild
+ADD . /cargo-zigbuild
+# Manually update the timestamps as ADD keeps the local timestamps and cargo would then believe the cache is fresh
+RUN $file = Get-Item .\cargo-zigbuild\src\lib.rs; $file.LastWriteTime = (Get-Date)
+RUN $file = Get-Item .\cargo-zigbuild\src\bin\cargo-zigbuild.rs; $file.LastWriteTime = (Get-Date)
+RUN cargo build --manifest-path .\cargo-zigbuild\Cargo.toml --release
+
+# --- Final image --- #
+
+FROM rust-windows as final
+ENV SDKROOT=C:\\sdk
+COPY --from=zig-and-macos-sdk C:\\zig C:\\zig
+COPY --from=zig-and-macos-sdk C:\\sdk C:\\sdk
+RUN [System.Environment]::SetEnvironmentVariable('PATH', $env:Path + ';C:\\zig', 'Machine')
+RUN rustup target add aarch64-pc-windows-gnullvm \
+    x86_64-unknown-linux-gnu \
+    x86_64-unknown-linux-musl \
+    aarch64-unknown-linux-gnu \
+    aarch64-unknown-linux-musl \
+    arm-unknown-linux-gnueabihf \
+    arm-unknown-linux-musleabihf \
+    x86_64-apple-darwin \
+    aarch64-apple-darwin
+COPY --from=builder C:\\cargo-zigbuild\\target\\release\\cargo-zigbuild.exe C:\\Users\\ContainerAdministrator\\.cargo\\bin\\cargo-zigbuild.exe
