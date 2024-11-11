@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+ARG RUST_VERSION=1.82.0
+ARG ZIG_VERSION=0.10.1
+USER ContainerAdministrator
+ADD https://github.com/phracker/MacOSX-SDKs/releases/latest/download/MacOSX11.3.sdk.tar.xz /sdk.tar.xz
+ADD https://ziglang.org/download/${ZIG_VERSION}/zig-windows-x86_64-${ZIG_VERSION}.zip /zig.zip
+ADD https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe /rustup-init.exe
+ADD https://www.7-zip.org/a/7zr.exe /7zr.exe
+ADD . /cargo-zigbuild
+SHELL [ "c:\\windows\\system32\\cmd.exe", "/s", "/c" ]
+ENV PATH=C:\\Users\\ContainerAdministrator\\.cargo\\bin;C:\\zig-windows-x86_64-${ZIG_VERSION};C:\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\;C:\\Windows\\System32\\OpenSSH\\;C:\\Users\\ContainerAdministrator\\AppData\\Local\\Microsoft\\WindowsApps;
+ENV SDKROOT=C:\\MacOSX11.3.sdk
+# Default host is set to x86_64-pc-windows-gnu to avoid MSVC which requires VS Build Tools
+RUN rustup-init.exe -y --no-modify-path --default-toolchain %RUST_VERSION% --default-host x86_64-pc-windows-gnu --target \
+    aarch64-pc-windows-gnullvm \
+    x86_64-unknown-linux-gnu x86_64-unknown-linux-musl \
+    aarch64-unknown-linux-gnu aarch64-unknown-linux-musl \
+    arm-unknown-linux-gnueabihf arm-unknown-linux-musleabihf \
+    x86_64-apple-darwin aarch64-apple-darwin \
+    && tar xf zig.zip && 7zr e sdk.tar.xz && tar xf sdk.tar \
+    && cargo build --manifest-path cargo-zigbuild\Cargo.toml --release \
+    && move cargo-zigbuild\target\release\cargo-zigbuild.exe %USERPROFILE%\.cargo\bin\cargo-zigbuild.exe \
+    && rmdir /q /s cargo-zigbuild && del /q rustup-init.exe 7zr.exe zig.zip sdk.tar.xz sdk.tar

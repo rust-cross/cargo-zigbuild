@@ -23,13 +23,22 @@ You can also install it using pip which will also install [`ziglang`](https://py
 pip install cargo-zigbuild
 ```
 
-We also provide a [Docker image](https://hub.docker.com/r/messense/cargo-zigbuild) which has macOS SDK pre-installed in addition to cargo-zigbuild and Rust,
-for example to build for x86_64 macOS:
+We also provide Docker images which has macOS SDK pre-installed in addition to cargo-zigbuild and Rust, for example to build for x86_64 macOS:
 
+- Linux docker image ([ghcr.io](https://github.com/rust-cross/cargo-zigbuild/pkgs/container/cargo-zigbuild), [Docker Hub](https://hub.docker.com/r/messense/cargo-zigbuild)):
 ```bash
 docker run --rm -it -v $(pwd):/io -w /io messense/cargo-zigbuild \
   cargo zigbuild --release --target x86_64-apple-darwin
 ```
+
+- Windows docker image ([ghcr.io](https://github.com/rust-cross/cargo-zigbuild/pkgs/container/cargo-zigbuild.windows), [Docker Hub](https://hub.docker.com/r/messense/cargo-zigbuild.windows)):
+```powershell
+docker run --rm -it -v ${pwd}:c:\io -w c:\io messense/cargo-zigbuild.windows `
+  cargo zigbuild --target x86_64-apple-darwin
+```
+> [!NOTE]  
+> Windows docker image can compile debug builds, but does NOT support `cargo build --release` for *-apple-darwin targets.
+> You will get ```error: unable to run `strip`: program not found```. If you know a solution to this, please open an issue and/or PR.
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/cargo-zigbuild.svg?columns=4)](https://repology.org/project/cargo-zigbuild/versions)
 
