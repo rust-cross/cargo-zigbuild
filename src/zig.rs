@@ -147,6 +147,15 @@ impl Zig {
         if target_info.is_macos {
             if self.should_add_libcharset(cmd_args, &zig_version) {
                 new_cmd_args.push("-lcharset".to_string());
+
+                // Add the deps directory that contains `.tbd` files to the library search path
+                let cache_dir = cache_dir();
+                let deps_dir = cache_dir.join("deps");
+                fs::create_dir_all(&deps_dir)?;
+                write_tbd_files(&deps_dir)?;
+
+                new_cmd_args.push("-L".to_string());
+                new_cmd_args.push(format!("{}", deps_dir.display()));
             }
             self.add_macos_specific_args(&mut new_cmd_args, &zig_version)?;
         }
@@ -889,17 +898,15 @@ impl Zig {
                 fs::create_dir_all(&deps_dir)?;
                 if !target_dir.join("CACHEDIR.TAG").is_file() {
                     // Create a CACHEDIR.TAG file to exclude target directory from backup
-                    let _ = fs::write(
-                        target_dir.join("CACHEDIR.TAG"),
+                    let _ = write_file(
+                        &target_dir.join("CACHEDIR.TAG"),
                         "Signature: 8a477f597d28d172789f06886806bc55
 # This file is a cache directory tag created by cargo.
 # For information about cache directory tags see https://bford.info/cachedir/
 ",
                     );
                 }
-                fs::write(deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
-                fs::write(deps_dir.join("libcharset.1.tbd"), LIBCHARSET_TBD)?;
-                fs::write(deps_dir.join("libcharset.tbd"), LIBCHARSET_TBD)?;
+                write_tbd_files(&deps_dir)?;
             } else if target.contains("arm") && target.contains("linux") {
                 // See https://github.com/ziglang/zig/issues/3287
                 if let Ok(lib_dir) = Zig::lib_dir() {
@@ -977,10 +984,7 @@ set(CMAKE_RANLIB {ranlib})"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
-        let existing_content = fs::read_to_string(&toolchain_file).unwrap_or_default();
-        if existing_content != content {
-            fs::write(&toolchain_file, content)?;
-        }
+        write_file(&toolchain_file, &content)?;
         Ok(toolchain_file)
     }
 
@@ -1020,6 +1024,21 @@ set(CMAKE_RANLIB {ranlib})"#,
             _ => None,
         }
     }
+}
+
+fn write_file(path: &Path, content: &str) -> Result<(), anyhow::Error> {
+    let existing_content = fs::read_to_string(path).unwrap_or_default();
+    if existing_content != content {
+        fs::write(path, content)?;
+    }
+    Ok(())
+}
+
+fn write_tbd_files(deps_dir: &Path) -> Result<(), anyhow::Error> {
+    write_file(&deps_dir.join("libiconv.tbd"), LIBICONV_TBD)?;
+    write_file(&deps_dir.join("libcharset.1.tbd"), LIBCHARSET_TBD)?;
+    write_file(&deps_dir.join("libcharset.tbd"), LIBCHARSET_TBD)?;
+    Ok(())
 }
 
 fn cache_dir() -> PathBuf {
