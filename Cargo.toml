@@ -15,12 +15,12 @@ rust-version = "1.74"
 anyhow = "1.0.53"
 cargo-config2 = "0.1.24"
 cargo-options = "0.7.4"
-cargo_metadata = "0.18.0"
+cargo_metadata = "0.19.0"
 clap = { version = "4.3.0", features = ["derive", "env", "wrap_help", "unstable-styles"] }
 crc = "3.2.1"
 dirs = "5.0.0"
 fat-macho = { version = "0.4.6", default-features = false, optional = true }
-fs-err = "2.6.0"
+fs-err = "3.0.0"
 path-slash = "0.2.0"
 rustc_version = "0.4.0"
 rustflags = "0.1.6"
@@ -29,7 +29,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 shlex = "1"
 target-lexicon = { version = "0.12.15", features = ["std"] }
-which = "6.0.0"
+which = "7.0.0"
 
 [features]
 default = ["universal2"]
