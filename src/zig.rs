@@ -147,15 +147,6 @@ impl Zig {
         if target_info.is_macos {
             if self.should_add_libcharset(cmd_args, &zig_version) {
                 new_cmd_args.push("-lcharset".to_string());
-
-                // Add the deps directory that contains `.tbd` files to the library search path
-                let cache_dir = cache_dir();
-                let deps_dir = cache_dir.join("deps");
-                fs::create_dir_all(&deps_dir)?;
-                write_tbd_files(&deps_dir)?;
-
-                new_cmd_args.push("-L".to_string());
-                new_cmd_args.push(format!("{}", deps_dir.display()));
             }
             self.add_macos_specific_args(&mut new_cmd_args, &zig_version)?;
         }
@@ -395,6 +386,14 @@ impl Zig {
                 "-DTARGET_OS_IPHONE=0".to_string(),
             ]);
         }
+
+        // Add the deps directory that contains `.tbd` files to the library search path
+        let cache_dir = cache_dir();
+        let deps_dir = cache_dir.join("deps");
+        fs::create_dir_all(&deps_dir)?;
+        write_tbd_files(&deps_dir)?;
+        new_cmd_args.push("-L".to_string());
+        new_cmd_args.push(format!("{}", deps_dir.display()));
         Ok(())
     }
 
