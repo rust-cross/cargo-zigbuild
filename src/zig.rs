@@ -106,7 +106,10 @@ impl Zig {
             .and_then(|index| cmd_args.get(index + 1));
         let target_info = TargetInfo::new(target);
 
-        let rustc_ver = rustc_version::version()?;
+        let rustc_ver = match env::var("CARGOZIGBUILD_RUSTC_VERSION") {
+            Ok(version) => version.parse()?,
+            Err(_) => rustc_version::version()?,
+        };
         let zig_version = Zig::zig_version()?;
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
@@ -512,6 +515,11 @@ impl Zig {
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
             .collect::<Vec<&str>>();
         let rustc_meta = rustc_version::version_meta()?;
+        Self::add_env_if_missing(
+            cmd,
+            "CARGOZIGBUILD_RUSTC_VERSION",
+            rustc_meta.semver.to_string(),
+        );
         let host_target = &rustc_meta.host;
         for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
             let env_target = parsed_target.replace('-', "_");
