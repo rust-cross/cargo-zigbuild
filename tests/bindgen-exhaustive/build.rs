@@ -26,7 +26,7 @@ fn generate(builder: bindgen::Builder, filename: &str) {
     // Tip: use `-###` to see cc1 options (`-v` normally prints them, but not in this case)
     let builder = builder
         .clang_arg("-v")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks));
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
 
     match builder.generate() {
         Ok(bindings) => {

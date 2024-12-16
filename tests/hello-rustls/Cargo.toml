@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 curl = { version = "0.4.33", default-features = false, features = ["rustls", "static-curl"], optional = true }
-reqwest = { version = "0.11.9", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12.9", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
