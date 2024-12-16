@@ -106,7 +106,7 @@ impl Zig {
             .and_then(|index| cmd_args.get(index + 1));
         let target_info = TargetInfo::new(target);
 
-        let rustc_ver = match env::var("CARGOZIGBUILD_RUSTC_VERSION") {
+        let rustc_ver = match env::var("CARGO_ZIGBUILD_RUSTC_VERSION") {
             Ok(version) => version.parse()?,
             Err(_) => rustc_version::version()?,
         };
@@ -517,7 +517,7 @@ impl Zig {
         let rustc_meta = rustc_version::version_meta()?;
         Self::add_env_if_missing(
             cmd,
-            "CARGOZIGBUILD_RUSTC_VERSION",
+            "CARGOZIG_BUILD_RUSTC_VERSION",
             rustc_meta.semver.to_string(),
         );
         let host_target = &rustc_meta.host;
