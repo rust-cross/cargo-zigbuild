@@ -517,7 +517,7 @@ impl Zig {
         let rustc_meta = rustc_version::version_meta()?;
         Self::add_env_if_missing(
             cmd,
-            "CARGOZIG_BUILD_RUSTC_VERSION",
+            "CARGO_ZIGBUILD_RUSTC_VERSION",
             rustc_meta.semver.to_string(),
         );
         let host_target = &rustc_meta.host;
