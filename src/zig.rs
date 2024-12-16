@@ -1223,7 +1223,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
             };
             cc_args.push(format!("-target {zig_arch}-linux-{target_env}{abi_suffix}"));
         }
-        OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin => {
+        OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin(_) => {
             let zig_version = Zig::zig_version()?;
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
