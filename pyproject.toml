@@ -5,6 +5,7 @@ build-backend = "maturin"
 [project]
 name = "cargo-zigbuild"
 dependencies = ["ziglang>=0.9.0"]
+dynamic = ["version"]
 
 [tool.maturin]
 bindings = "bin"
