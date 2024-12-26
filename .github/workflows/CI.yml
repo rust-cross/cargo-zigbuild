@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: setup sccache
-        if: ${{ !startsWith(matrix.os, "riscv") }}
+        if: ${{ !startsWith(matrix.os, 'riscv') }}
         uses: mozilla-actions/sccache-action@v0.0.6
         with:
           version: "v0.4.0"
