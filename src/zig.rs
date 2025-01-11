@@ -660,7 +660,9 @@ impl Zig {
                 .arg("-E")
                 .arg(&empty_file_path)
                 .arg("-v")
-                .output()?;
+                .output();
+            fs::remove_file(&empty_file_path).ok();
+            let output = output?;
             // Clang always generates UTF-8 regardless of locale, so this is okay.
             let stderr = String::from_utf8(output.stderr)?;
             if !output.status.success() {
