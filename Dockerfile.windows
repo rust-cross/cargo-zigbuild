@@ -1,5 +1,5 @@
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
-ARG RUST_VERSION=1.82.0
+ARG RUST_VERSION=1.84.0
 ARG ZIG_VERSION=0.10.1
 USER ContainerAdministrator
 ADD https://github.com/phracker/MacOSX-SDKs/releases/latest/download/MacOSX11.3.sdk.tar.xz /sdk.tar.xz
