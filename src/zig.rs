@@ -310,23 +310,37 @@ impl Zig {
             } else if target_info.is_riscv64 {
                 return vec!["-march=generic_rv64".to_string()];
             } else if arg.starts_with("-march=armv8-a") {
-                if target_info
+                let mut args_march = if target_info
                     .target
                     .as_ref()
                     .map(|x| x.starts_with("aarch64-macos"))
                     .unwrap_or_default()
                 {
-                    return vec![arg.replace("armv8-a", "apple_m1")];
+                    vec![arg.replace("armv8-a", "apple_m1")]
                 } else if target_info
                     .target
                     .as_ref()
                     .map(|x| x.starts_with("aarch64-linux"))
                     .unwrap_or_default()
                 {
-                    return vec![arg
+                    vec![arg
                         .replace("armv8-a", "generic+v8a")
-                        .replace("simd", "neon")];
+                        .replace("simd", "neon")]
+                } else {
+                    vec![arg.to_string()]
+                };
+                if arg == "-march=armv8-a+crypto" {
+                    // Workaround for building sha1-asm on aarch64
+                    // See:
+                    // https://github.com/rust-cross/cargo-zigbuild/issues/149
+                    // https://github.com/RustCrypto/asm-hashes/blob/master/sha1/build.rs#L17-L19
+                    // https://github.com/ziglang/zig/issues/10411
+                    args_march.append(&mut vec![
+                        "-Xassembler".to_owned(),
+                        "-march=armv8-a+crypto".to_owned(),
+                    ]);
                 }
+                return args_march;
             }
         }
         if target_info.is_macos {
