@@ -119,17 +119,17 @@ impl Zig {
                 skip_next_arg = false;
                 continue;
             }
-            let arg = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
-                Some(self.process_linker_response_file(
+            let args = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
+                vec![self.process_linker_response_file(
                     arg,
                     &rustc_ver,
                     &zig_version,
                     &target_info,
-                )?)
+                )?]
             } else {
                 self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info)
             };
-            if let Some(arg) = arg {
+            for arg in args {
                 if arg == "-Wl,-exported_symbols_list" {
                     // Filter out this and the next argument
                     skip_next_arg = true;
@@ -204,7 +204,7 @@ impl Zig {
         };
         let mut link_args: Vec<_> = content
             .split('\n')
-            .filter_map(|arg| self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info))
+            .flat_map(|arg| self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info))
             .collect();
         if self.has_undefined_dynamic_lookup(&link_args) {
             link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
@@ -234,35 +234,35 @@ impl Zig {
         rustc_ver: &rustc_version::Version,
         zig_version: &semver::Version,
         target_info: &TargetInfo,
-    ) -> Option<String> {
+    ) -> Vec<String> {
         if arg == "-lgcc_s" {
             // Replace libgcc_s with libunwind
-            return Some("-lunwind".to_string());
+            return vec!["-lunwind".to_string()];
         } else if arg.starts_with("--target=") {
             // We have already passed target via `-target`
-            return None;
+            return vec![];
         }
         if (target_info.is_arm || target_info.is_windows_gnu)
             && arg.ends_with(".rlib")
             && arg.contains("libcompiler_builtins-")
         {
             // compiler-builtins is duplicated with zig's compiler-rt
-            return None;
+            return vec![];
         }
         if target_info.is_windows_gnu {
             #[allow(clippy::if_same_then_else)]
             if arg == "-lgcc_eh" {
                 // zig doesn't provide gcc_eh alternative
                 // We use libc++ to replace it on windows gnu targets
-                return Some("-lc++".to_string());
+                return vec!["-lc++".to_string()];
             } else if arg == "-Wl,-Bdynamic" && (zig_version.major, zig_version.minor) >= (0, 11) {
                 // https://github.com/ziglang/zig/pull/16058
                 // zig changes the linker behavior, -Bdynamic won't search *.a for mingw, but this may be fixed in the later version
                 // here is a workaround to replace the linker switch with -search_paths_first, which will search for *.dll,*lib first,
                 // then fallback to *.a
-                return Some("-Wl,-search_paths_first".to_owned());
+                return vec!["-Wl,-search_paths_first".to_owned()];
             } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
-                return None;
+                return vec![];
             } else if arg == "-Wl,--disable-auto-image-base"
                 || arg == "-Wl,--dynamicbase"
                 || arg == "-Wl,--large-address-aware"
@@ -273,22 +273,22 @@ impl Zig {
                 // https://github.com/rust-lang/rust/blob/2fb0e8d162a021f8a795fb603f5d8c0017855160/compiler/rustc_target/src/spec/windows_gnu_base.rs#L22
                 // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
                 // zig doesn't support --disable-auto-image-base, --dynamicbase and --large-address-aware
-                return None;
+                return vec![];
             } else if arg == "-lmsvcrt" {
-                return None;
+                return vec![];
             }
         } else if arg == "-Wl,--no-undefined-version" {
             // https://github.com/rust-lang/rust/blob/542ed2bf72b232b245ece058fc11aebb1ca507d7/compiler/rustc_codegen_ssa/src/back/linker.rs#L723
             // zig doesn't support --no-undefined-version
-            return None;
+            return vec![];
         }
         if target_info.is_musl || target_info.is_ohos {
             // Avoids duplicated symbols with both zig musl libc and the libc crate
             if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
-                return None;
+                return vec![];
             } else if arg == "-Wl,-melf_i386" {
                 // unsupported linker arg: -melf_i386
-                return None;
+                return vec![];
             }
             if rustc_ver.major == 1
                 && rustc_ver.minor < 59
@@ -297,18 +297,18 @@ impl Zig {
             {
                 // Rust distributes standalone libc.a in self-contained for musl since 1.59.0
                 // See https://github.com/rust-lang/rust/pull/90527
-                return None;
+                return vec![];
             }
             if arg == "-lc" {
-                return None;
+                return vec![];
             }
         }
         if arg.starts_with("-march=") {
             // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
             if target_info.is_arm || target_info.is_i386 {
-                return None;
+                return vec![];
             } else if target_info.is_riscv64 {
-                return Some("-march=generic_rv64".to_string());
+                return vec!["-march=generic_rv64".to_string()];
             } else if arg.starts_with("-march=armv8-a") {
                 if target_info
                     .target
@@ -316,17 +316,16 @@ impl Zig {
                     .map(|x| x.starts_with("aarch64-macos"))
                     .unwrap_or_default()
                 {
-                    return Some(arg.replace("armv8-a", "apple_m1"));
+                    return vec![arg.replace("armv8-a", "apple_m1")];
                 } else if target_info
                     .target
                     .as_ref()
                     .map(|x| x.starts_with("aarch64-linux"))
                     .unwrap_or_default()
                 {
-                    return Some(
-                        arg.replace("armv8-a", "generic+v8a")
-                            .replace("simd", "neon"),
-                    );
+                    return vec![arg
+                        .replace("armv8-a", "generic+v8a")
+                        .replace("simd", "neon")];
                 }
             }
         }
@@ -334,14 +333,14 @@ impl Zig {
             if arg.starts_with("-Wl,-exported_symbols_list,") {
                 // zig doesn't support -exported_symbols_list arg
                 // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
-                return None;
+                return vec![];
             }
             if arg == "-Wl,-dylib" {
                 // zig doesn't support -dylib
-                return None;
+                return vec![];
             }
         }
-        Some(arg.to_string())
+        vec![arg.to_string()]
     }
 
     fn has_undefined_dynamic_lookup(&self, args: &[String]) -> bool {
