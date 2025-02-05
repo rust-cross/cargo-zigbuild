@@ -46,6 +46,11 @@ fn main() -> anyhow::Result<()> {
             args: args.collect(),
         };
         zig.execute()?;
+    } else if program_name.eq_ignore_ascii_case("lib") {
+        let zig = Zig::Lib {
+            args: args.collect(),
+        };
+        zig.execute()?;
     } else {
         let opt = Opt::parse();
         match opt {
