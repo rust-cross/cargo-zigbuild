@@ -49,6 +49,13 @@ pub enum Zig {
         #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
+    /// `zig lib` wrapper
+    #[command(name = "ranlib")]
+    Lib {
+        /// `zig ranlib` arguments
+        #[arg(num_args = 1.., trailing_var_arg = true)]
+        args: Vec<String>,
+    },
 }
 
 struct TargetInfo {
@@ -95,6 +102,7 @@ impl Zig {
             Zig::Cxx { args } => self.execute_compiler("c++", args),
             Zig::Ar { args } => self.execute_tool("ar", args),
             Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
+            Zig::Lib { args } => self.execute_compiler("lib", args),
         }
     }
 
@@ -553,7 +561,11 @@ impl Zig {
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
-                Self::add_env_if_missing(cmd, format!("AR_{env_target}"), &zig_wrapper.ar);
+                if parsed_target.contains("msvc") {
+                    Self::add_env_if_missing(cmd, format!("AR_{env_target}"), &zig_wrapper.lib);
+                } else {
+                    Self::add_env_if_missing(cmd, format!("AR_{env_target}"), &zig_wrapper.ar);
+                }
             }
 
             Self::setup_os_deps(manifest_path, release, cargo)?;
@@ -1073,6 +1085,7 @@ pub struct ZigWrapper {
     pub cxx: PathBuf,
     pub ar: PathBuf,
     pub ranlib: PathBuf,
+    pub lib: PathBuf,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -1354,12 +1367,15 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
     let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
     symlink_wrapper(&zig_ar)?;
+    let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
+    symlink_wrapper(&zig_lib)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
         cxx: zig_cxx,
         ar: zig_ar,
         ranlib: zig_ranlib,
+        lib: zig_lib,
     })
 }
 
