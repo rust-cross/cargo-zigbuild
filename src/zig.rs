@@ -50,7 +50,7 @@ pub enum Zig {
         args: Vec<String>,
     },
     /// `zig lib` wrapper
-    #[command(name = "ranlib")]
+    #[command(name = "lib")]
     Lib {
         /// `zig ranlib` arguments
         #[arg(num_args = 1.., trailing_var_arg = true)]
