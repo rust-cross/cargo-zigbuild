@@ -1386,10 +1386,10 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     write_linker_wrapper(&current_exe, &zig_ranlib, "ranlib", "")?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-    let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
-    symlink_wrapper(&zig_ar)?;
-    let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
-    symlink_wrapper(&zig_lib)?;
+    let zig_ar = zig_linker_dir.join(format!("ar-{:x}{exe_ext}", hash));
+    symlink_wrapper(&current_exe, &zig_ar)?;
+    let zig_lib = zig_linker_dir.join(format!("lib-{:x}{exe_ext}", hash));
+    symlink_wrapper(&current_exe, &zig_lib)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
@@ -1400,12 +1400,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     })
 }
 
-fn symlink_wrapper(target: &Path) -> Result<()> {
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
+fn symlink_wrapper(current_exe: &Path, target: &Path) -> Result<()> {
     #[cfg(windows)]
     {
         if !target.exists() {
