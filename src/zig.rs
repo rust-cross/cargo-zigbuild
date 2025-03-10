@@ -392,8 +392,10 @@ impl Zig {
         zig_version: &semver::Version,
     ) -> Result<()> {
         let sdkroot = Self::macos_sdk_root();
-        if (zig_version.major, zig_version.minor) >= (0, 12) {
-            // Zig 0.12.0 requires passing `--sysroot`
+        if (zig_version.major, zig_version.minor) >= (0, 12)
+            && (zig_version.major, zig_version.minor) < (0, 14)
+        {
+            // Zig 0.12.0 & 0.13.0 requires passing `--sysroot`
             if let Some(ref sdkroot) = sdkroot {
                 new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
             }
