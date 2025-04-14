@@ -289,6 +289,10 @@ impl Zig {
             // https://github.com/rust-lang/rust/blob/542ed2bf72b232b245ece058fc11aebb1ca507d7/compiler/rustc_codegen_ssa/src/back/linker.rs#L723
             // zig doesn't support --no-undefined-version
             return vec![];
+        } else if arg == "-Wl,-znostart-stop-gc" {
+            // https://github.com/rust-lang/rust/blob/c580c498a1fe144d7c5b2dfc7faab1a229aa288b/compiler/rustc_codegen_ssa/src/back/link.rs#L3371
+            // zig doesn't support -znostart-stop-gc
+            return vec![];
         }
         if target_info.is_musl || target_info.is_ohos {
             // Avoids duplicated symbols with both zig musl libc and the libc crate
