@@ -81,7 +81,6 @@ jobs:
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
       - name: Test bindgen-exhaustive
-        if: ${{ !startsWith(matrix.os, 'macos') }}
         shell: bash
         run: |
           set -e
