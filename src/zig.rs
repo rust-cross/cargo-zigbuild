@@ -1188,7 +1188,12 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
     let file_target = target.trim_end_matches('.');
 
-    let mut cc_args = vec!["-g".to_owned()]; // prevent stripping
+    let mut cc_args = vec![
+        // prevent stripping
+        "-g".to_owned(),
+        // disable sanitizers
+        "-fno-sanitize=all".to_owned(),
+    ];
 
     // TODO: Maybe better to assign mcpu according to:
     // rustc --target <target> -Z unstable-options --print target-spec-json
