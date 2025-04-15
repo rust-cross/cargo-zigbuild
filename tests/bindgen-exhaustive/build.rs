@@ -5,8 +5,13 @@ fn main() {
     println!("cargo:rerun-if-changed=sys/isoc.h");
     println!("cargo:rerun-if-changed=sys/isocpp.hpp");
 
+    let rust_target = match bindgen::RustTarget::stable(74, 0) {
+        Ok(rust_target) => rust_target,
+        Err(_) => panic!("Failed to create RustTarget"),
+    };
     generate(
         bindgen::Builder::default()
+            .rust_target(rust_target)
             .header("src/sysdep.h")
             .header("src/isoc.h")
             .allowlist_type(r"zigbuild_.*"),
@@ -15,6 +20,7 @@ fn main() {
 
     generate(
         bindgen::Builder::default()
+            .rust_target(rust_target)
             .header("src/sysdep.h")
             .header("src/isocpp.hpp")
             .allowlist_type(r"zigbuild_.*"),
