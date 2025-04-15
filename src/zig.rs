@@ -393,19 +393,24 @@ impl Zig {
     ) -> Result<()> {
         let sdkroot = Self::macos_sdk_root();
         if (zig_version.major, zig_version.minor) >= (0, 12) {
-            // Zig 0.12.0 requires passing `--sysroot`
+            // Zig 0.12.0+ requires passing `--sysroot`
             if let Some(ref sdkroot) = sdkroot {
                 new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
             }
         }
         if let Some(ref sdkroot) = sdkroot {
+            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 14) {
+                sdkroot
+            } else {
+                Path::new("/")
+            };
             new_cmd_args.extend_from_slice(&[
                 "-isystem".to_string(),
-                format!("{}", sdkroot.join("usr").join("include").display()),
-                format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                format!("{}", include_prefix.join("usr").join("include").display()),
+                format!("-L{}", include_prefix.join("usr").join("lib").display()),
                 format!(
                     "-F{}",
-                    sdkroot
+                    include_prefix
                         .join("System")
                         .join("Library")
                         .join("Frameworks")
