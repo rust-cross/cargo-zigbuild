@@ -631,32 +631,29 @@ impl Zig {
             }
 
             // Pass options used by zig cc down to bindgen, if possible
-            if let Ok(mut options) = Self::collect_zig_cc_options(&zig_wrapper, raw_target) {
-                if raw_target.contains("apple-darwin") {
-                    // everyone seems to miss `#import <TargetConditionals.h>`...
-                    options.push("-DTARGET_OS_IPHONE=0".to_string());
-                }
-
-                let escaped_options = shlex::try_join(options.iter().map(|s| &s[..]))?;
-
-                // Override bindgen variables to append additional options
-                let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
-                let fallback_value = env::var(bindgen_env);
-                for target in [&env_target[..], parsed_target] {
-                    let name = format!("{bindgen_env}_{target}");
-                    if let Ok(mut value) = env::var(&name).or(fallback_value.clone()) {
-                        if shlex::split(&value).is_none() {
-                            // bindgen treats the whole string as a single argument if split fails
-                            value = shlex::try_quote(&value)?.into_owned();
-                        }
-                        if !value.is_empty() {
-                            value.push(' ');
-                        }
-                        value.push_str(&escaped_options);
-                        env::set_var(name, value);
-                    } else {
-                        env::set_var(name, escaped_options.clone());
+            let mut options = Self::collect_zig_cc_options(&zig_wrapper, raw_target)
+                .context("Failed to collect `zig cc` options")?;
+            if raw_target.contains("apple-darwin") {
+                // everyone seems to miss `#import <TargetConditionals.h>`...
+                options.push("-DTARGET_OS_IPHONE=0".to_string());
+            }
+            let escaped_options = shlex::try_join(options.iter().map(|s| &s[..]))?;
+            let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
+            let fallback_value = env::var(bindgen_env);
+            for target in [&env_target[..], parsed_target] {
+                let name = format!("{bindgen_env}_{target}");
+                if let Ok(mut value) = env::var(&name).or(fallback_value.clone()) {
+                    if shlex::split(&value).is_none() {
+                        // bindgen treats the whole string as a single argument if split fails
+                        value = shlex::try_quote(&value)?.into_owned();
                     }
+                    if !value.is_empty() {
+                        value.push(' ');
+                    }
+                    value.push_str(&escaped_options);
+                    env::set_var(name, value);
+                } else {
+                    env::set_var(name, escaped_options.clone());
                 }
             }
         }
@@ -768,20 +765,22 @@ impl Zig {
         }
         let c_paths = c_opts.include_paths;
         let mut cpp_paths = cpp_opts.include_paths;
-        let (cpp_pre_len, cpp_post_len) = if cpp_paths.starts_with(&c_paths) {
-            (0, cpp_paths.len() - c_paths.len())
-        } else if cpp_paths.ends_with(&c_paths) {
-            (cpp_paths.len() - c_paths.len(), 0)
-        } else {
-            bail!("C++ search path used by `zig cc` is unexpectedly different from C search path!");
-        };
-        if !cpp_paths[..cpp_pre_len]
+        let cpp_pre_len = cpp_paths
             .iter()
-            .chain(cpp_paths[cpp_paths.len() - cpp_post_len..].iter())
-            .all(|(kind, _)| *kind == Kind::Normal)
-        {
-            bail!("C++ search path used by `zig cc` contains additional special search paths!");
-        }
+            .position(|p| {
+                p == c_paths
+                    .iter()
+                    .filter(|(kind, _)| *kind == Kind::Normal)
+                    .next()
+                    .unwrap()
+            })
+            .unwrap_or_default();
+        let cpp_post_len = cpp_paths.len()
+            - cpp_paths
+                .iter()
+                .position(|p| p == c_paths.last().unwrap())
+                .unwrap_or_default()
+            - 1;
 
         // <digression>
         //
@@ -854,20 +853,29 @@ impl Zig {
             // https://github.com/ziglang/zig/pull/16098
             args.push("-D_LARGEFILE64_SOURCE".to_owned());
         }
-        args.push("-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
-        args.push("-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS".to_owned());
-        args.push("-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS".to_owned());
-        args.push("-D_LIBCPP_PSTL_CPU_BACKEND_SERIAL".to_owned());
-        args.push("-D_LIBCPP_ABI_VERSION=1".to_owned());
-        args.push("-D_LIBCPP_ABI_NAMESPACE=__1".to_owned());
-        args.push("-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST".to_owned());
+        args.extend(
+            [
+                "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+                "-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS",
+                "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
+                "-D_LIBCPP_PSTL_CPU_BACKEND_SERIAL",
+                "-D_LIBCPP_ABI_VERSION=1",
+                "-D_LIBCPP_ABI_NAMESPACE=__1",
+                "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST",
+            ]
+            .into_iter()
+            .map(ToString::to_string),
+        );
         if let Some(ver) = c_opts.glibc_minor_ver {
             // Handled separately because we have no way to infer this without Zig
             args.push(format!("-D__GLIBC_MINOR__={ver}"));
         }
 
         for (kind, path) in cpp_paths.drain(..cpp_pre_len) {
-            assert!(kind == Kind::Normal);
+            if kind != Kind::Normal {
+                // may also be Kind::Framework on macOS
+                continue;
+            }
             // Ideally this should be `-stdlib++-isystem`, which can be disabled by
             // passing `-nostdinc++`, but it is fairly new: https://reviews.llvm.org/D64089
             //
