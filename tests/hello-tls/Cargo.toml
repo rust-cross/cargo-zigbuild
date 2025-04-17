@@ -7,4 +7,4 @@ edition = "2018"
 
 [dependencies]
 reqwest = { version = "0.12.9", features = ["native-tls-vendored"] }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread"] }
