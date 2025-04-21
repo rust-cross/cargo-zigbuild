@@ -40,14 +40,8 @@ jobs:
             zig: master
     env:
       RUST_BACKTRACE: "1"
-      # SCCACHE_GHA_ENABLED: "true"
-      # RUSTC_WRAPPER: "sccache"
     steps:
       - uses: actions/checkout@v4
-      - name: setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-        with:
-          version: "v0.4.0"
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
