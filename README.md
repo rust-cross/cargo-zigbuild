@@ -31,12 +31,6 @@ docker run --rm -it -v $(pwd):/io -w /io ghcr.io/rust-cross/cargo-zigbuild \
   cargo zigbuild --release --target x86_64-apple-darwin
 ```
 
-- Windows docker image ([ghcr.io](https://github.com/rust-cross/cargo-zigbuild/pkgs/container/cargo-zigbuild.windows), [Docker Hub](https://hub.docker.com/r/messense/cargo-zigbuild.windows)):
-```powershell
-docker run --rm -it -v ${pwd}:c:\io -w c:\io ghcr.io/rust-cross/cargo-zigbuild.windows `
-  cargo zigbuild --target x86_64-apple-darwin
-```
-
 [![Packaging status](https://repology.org/badge/vertical-allrepos/cargo-zigbuild.svg?columns=4)](https://repology.org/project/cargo-zigbuild/versions)
 
 ## Usage
