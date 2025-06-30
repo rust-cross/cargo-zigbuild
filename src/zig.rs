@@ -1022,7 +1022,9 @@ set(CMAKE_SYSTEM_NAME {system_name})
 set(CMAKE_SYSTEM_PROCESSOR {system_processor})
 set(CMAKE_C_COMPILER {cc})
 set(CMAKE_CXX_COMPILER {cxx})
-set(CMAKE_RANLIB {ranlib})"#,
+set(CMAKE_RANLIB {ranlib})
+set(CMAKE_C_LINKER_DEPFILE_SUPPORTED FALSE)
+set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
             system_name = system_name,
             system_processor = system_processor,
             cc = zig_wrapper.cc.to_slash_lossy(),
