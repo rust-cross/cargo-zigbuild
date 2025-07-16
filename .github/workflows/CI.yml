@@ -47,9 +47,9 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
       - name: Install zig
-        uses: korandoru/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
-          zig-version: ${{ matrix.zig }}
+          version: ${{ matrix.zig }}
       - run: zig version
       - run: cargo build
       - name: Install Rust targets
