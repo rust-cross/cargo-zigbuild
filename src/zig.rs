@@ -539,6 +539,37 @@ impl Zig {
         }
     }
 
+    fn add_rustflags<K, V>(command: &mut Command, rustflags_env: K, new_flag: V)
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        let env_key = rustflags_env.as_ref();
+        let flag_str = new_flag.as_ref().to_string_lossy();
+        
+        // Check if RUSTFLAGS is already set in the command environment
+        if let Some((_, existing_value)) = command.get_envs().find(|(key, _)| *key == env_key) {
+            if let Some(existing) = existing_value {
+                let existing_str = existing.to_string_lossy();
+                if !existing_str.contains(&*flag_str) {
+                    let new_value = format!("{} {}", existing_str, flag_str);
+                    command.env(env_key, new_value);
+                }
+            } else {
+                command.env(env_key, flag_str.as_ref());
+            }
+        } else if let Ok(existing) = env::var(env_key) {
+            // Check if it's already set in the process environment
+            if !existing.contains(&*flag_str) {
+                let new_value = format!("{} {}", existing, flag_str);
+                command.env(env_key, new_value);
+            }
+        } else {
+            // Not set anywhere, set it now
+            command.env(env_key, flag_str.as_ref());
+        }
+    }
+
     pub(crate) fn apply_command_env(
         manifest_path: Option<&Path>,
         release: bool,
@@ -591,16 +622,10 @@ impl Zig {
             
             // Set up dlltool for windows-gnu targets
             if parsed_target.contains("windows-gnu") {
-                // Set up the target-specific dlltool environment variable
-                let dlltool_env = match parsed_target {
-                    target if target.starts_with("x86_64") => "x86_64-w64-mingw32-dlltool",
-                    target if target.starts_with("i686") => "i686-w64-mingw32-dlltool", 
-                    target if target.starts_with("aarch64") => "aarch64-w64-mingw32-dlltool",
-                    _ => "dlltool",
-                };
-                // Add both the target-specific and generic dlltool environment variables
-                Self::add_env_if_missing(cmd, dlltool_env, &zig_wrapper.dlltool);
-                Self::add_env_if_missing(cmd, "DLLTOOL", &zig_wrapper.dlltool);
+                // Use -Cdlltool=<path> rustc flag instead of environment variables
+                let rustflags_env = format!("CARGO_TARGET_{}_RUSTFLAGS", env_target.to_uppercase());
+                let dlltool_flag = format!("-Cdlltool={}", zig_wrapper.dlltool.display());
+                Self::add_rustflags(cmd, rustflags_env, dlltool_flag);
             }
             
             // Only setup AR when explicitly asked to
