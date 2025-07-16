@@ -51,6 +51,12 @@ fn main() -> anyhow::Result<()> {
             args: args.collect(),
         };
         zig.execute()?;
+    } else if program_name.eq_ignore_ascii_case("dlltool") 
+        || program_name.to_string_lossy().ends_with("-dlltool") {
+        let zig = Zig::Dlltool {
+            args: args.collect(),
+        };
+        zig.execute()?;
     } else {
         let opt = Opt::parse();
         match opt {

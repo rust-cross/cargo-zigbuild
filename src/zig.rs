@@ -56,6 +56,13 @@ pub enum Zig {
         #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
+    /// `zig dlltool` wrapper
+    #[command(name = "dlltool")]
+    Dlltool {
+        /// `zig dlltool` arguments
+        #[arg(num_args = 1.., trailing_var_arg = true)]
+        args: Vec<String>,
+    },
 }
 
 struct TargetInfo {
@@ -103,6 +110,7 @@ impl Zig {
             Zig::Ar { args } => self.execute_tool("ar", args),
             Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
             Zig::Lib { args } => self.execute_compiler("lib", args),
+            Zig::Dlltool { args } => self.execute_tool("dlltool", args),
         }
     }
 
@@ -580,6 +588,21 @@ impl Zig {
             }
 
             Self::add_env_if_missing(cmd, format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
+            
+            // Set up dlltool for windows-gnu targets
+            if parsed_target.contains("windows-gnu") {
+                // Set up the target-specific dlltool environment variable
+                let dlltool_env = match parsed_target {
+                    target if target.starts_with("x86_64") => "x86_64-w64-mingw32-dlltool",
+                    target if target.starts_with("i686") => "i686-w64-mingw32-dlltool", 
+                    target if target.starts_with("aarch64") => "aarch64-w64-mingw32-dlltool",
+                    _ => "dlltool",
+                };
+                // Add both the target-specific and generic dlltool environment variables
+                Self::add_env_if_missing(cmd, dlltool_env, &zig_wrapper.dlltool);
+                Self::add_env_if_missing(cmd, "DLLTOOL", &zig_wrapper.dlltool);
+            }
+            
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
@@ -1037,6 +1060,13 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
+        // Add dlltool for Windows mingw targets
+        if target.contains("windows-gnu") {
+            content.push_str(&format!(
+                "\nset(CMAKE_DLLTOOL {})\n",
+                zig_wrapper.dlltool.to_slash_lossy()
+            ));
+        }
         write_file(&toolchain_file, &content)?;
         Ok(toolchain_file)
     }
@@ -1118,6 +1148,7 @@ pub struct ZigWrapper {
     pub ar: PathBuf,
     pub ranlib: PathBuf,
     pub lib: PathBuf,
+    pub dlltool: PathBuf,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -1406,6 +1437,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     symlink_wrapper(&zig_ar)?;
     let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
     symlink_wrapper(&zig_lib)?;
+    let zig_dlltool = zig_linker_dir.join(format!("dlltool{exe_ext}"));
+    symlink_wrapper(&zig_dlltool)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
@@ -1413,6 +1446,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         ar: zig_ar,
         ranlib: zig_ranlib,
         lib: zig_lib,
+        dlltool: zig_dlltool,
     })
 }
 
