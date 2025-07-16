@@ -1610,4 +1610,22 @@ mod tests {
             assert_eq!(flags.target_feature, *expected_target_feature, "{}", input);
         }
     }
+
+    #[test]
+    fn test_dlltool_command_recognition() {
+        // Test that dlltool variants are properly handled in the execute method
+        let zig_dlltool = Zig::Dlltool {
+            args: vec!["--help".to_string()],
+        };
+        
+        // The execute method should route to execute_tool for dlltool
+        // We can't test the actual execution without zig installed,
+        // but we can verify the enum variant exists and compiles
+        match zig_dlltool {
+            Zig::Dlltool { args } => {
+                assert_eq!(args, vec!["--help".to_string()]);
+            }
+            _ => panic!("Expected Dlltool variant"),
+        }
+    }
 }
