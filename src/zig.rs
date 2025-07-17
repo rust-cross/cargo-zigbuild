@@ -544,22 +544,39 @@ impl Zig {
         rustflags_env: K,
         new_flag: V,
         target: &str,
-    ) -> Result<()>
-    where
+    ) where
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
         let env_key = rustflags_env.as_ref();
         let flag_str = new_flag.as_ref().to_string_lossy();
 
-        // Load existing rustflags from cargo config
-        let cargo_config = cargo_config2::Config::load()?;
-        let existing_flags = cargo_config.rustflags(target)?.unwrap_or_default();
-
-        // Get the encoded string representation of existing flags
+        // Try to load existing rustflags from cargo config, fall back to env vars if it fails
         let mut combined_flags = String::new();
-        if !existing_flags.flags.is_empty() {
-            combined_flags = existing_flags.encode()?;
+        
+        if let Ok(cargo_config) = cargo_config2::Config::load() {
+            if let Ok(existing_flags) = cargo_config.rustflags(target) {
+                if let Some(flags) = existing_flags {
+                    if !flags.flags.is_empty() {
+                        if let Ok(encoded) = flags.encode() {
+                            combined_flags = encoded;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback: check environment variables if cargo config loading failed
+        if combined_flags.is_empty() {
+            // Check if RUSTFLAGS is already set in the command environment
+            if let Some((_, existing_value)) = command.get_envs().find(|(key, _)| *key == env_key) {
+                if let Some(existing) = existing_value {
+                    combined_flags = existing.to_string_lossy().to_string();
+                }
+            } else if let Ok(existing) = env::var(env_key) {
+                // Check if it's already set in the process environment
+                combined_flags = existing;
+            }
         }
 
         // Check if our flag is already present
@@ -574,8 +591,6 @@ impl Zig {
         if !combined_flags.is_empty() {
             command.env(env_key, combined_flags);
         }
-
-        Ok(())
     }
 
     pub(crate) fn apply_command_env(
@@ -633,7 +648,7 @@ impl Zig {
                 // Use -Cdlltool=<path> rustc flag instead of environment variables
                 let rustflags_env = format!("CARGO_TARGET_{}_RUSTFLAGS", env_target.to_uppercase());
                 let dlltool_flag = format!("-Cdlltool={}", zig_wrapper.dlltool.display());
-                Self::add_rustflags(cmd, rustflags_env, dlltool_flag, parsed_target)?;
+                Self::add_rustflags(cmd, rustflags_env, dlltool_flag, parsed_target);
             }
 
             // Only setup AR when explicitly asked to
