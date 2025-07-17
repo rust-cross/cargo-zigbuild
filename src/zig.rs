@@ -539,24 +539,29 @@ impl Zig {
         }
     }
 
-    fn add_rustflags<K, V>(command: &mut Command, rustflags_env: K, new_flag: V, target: &str) -> Result<()>
+    fn add_rustflags<K, V>(
+        command: &mut Command,
+        rustflags_env: K,
+        new_flag: V,
+        target: &str,
+    ) -> Result<()>
     where
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
         let env_key = rustflags_env.as_ref();
         let flag_str = new_flag.as_ref().to_string_lossy();
-        
+
         // Load existing rustflags from cargo config
         let cargo_config = cargo_config2::Config::load()?;
         let existing_flags = cargo_config.rustflags(target)?.unwrap_or_default();
-        
+
         // Get the encoded string representation of existing flags
         let mut combined_flags = String::new();
         if !existing_flags.flags.is_empty() {
             combined_flags = existing_flags.encode()?;
         }
-        
+
         // Check if our flag is already present
         if !combined_flags.contains(&*flag_str) {
             if !combined_flags.is_empty() {
@@ -564,12 +569,12 @@ impl Zig {
             }
             combined_flags.push_str(&flag_str);
         }
-        
+
         // Set the combined flags
         if !combined_flags.is_empty() {
             command.env(env_key, combined_flags);
         }
-        
+
         Ok(())
     }
 
@@ -622,7 +627,7 @@ impl Zig {
             }
 
             Self::add_env_if_missing(cmd, format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
-            
+
             // Set up dlltool for windows-gnu targets
             if parsed_target.contains("windows-gnu") {
                 // Use -Cdlltool=<path> rustc flag instead of environment variables
@@ -630,7 +635,7 @@ impl Zig {
                 let dlltool_flag = format!("-Cdlltool={}", zig_wrapper.dlltool.display());
                 Self::add_rustflags(cmd, rustflags_env, dlltool_flag, parsed_target)?;
             }
-            
+
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
@@ -1645,7 +1650,7 @@ mod tests {
         let zig_dlltool = Zig::Dlltool {
             args: vec!["--help".to_string()],
         };
-        
+
         // The execute method should route to execute_tool for dlltool
         // We can't test the actual execution without zig installed,
         // but we can verify the enum variant exists and compiles
