@@ -56,6 +56,13 @@ pub enum Zig {
         #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
+    /// `zig dlltool` wrapper
+    #[command(name = "dlltool")]
+    Dlltool {
+        /// `zig dlltool` arguments
+        #[arg(num_args = 1.., trailing_var_arg = true)]
+        args: Vec<String>,
+    },
 }
 
 struct TargetInfo {
@@ -103,6 +110,7 @@ impl Zig {
             Zig::Ar { args } => self.execute_tool("ar", args),
             Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
             Zig::Lib { args } => self.execute_compiler("lib", args),
+            Zig::Dlltool { args } => self.execute_tool("dlltool", args),
         }
     }
 
@@ -531,6 +539,60 @@ impl Zig {
         }
     }
 
+    fn add_rustflags<K, V>(
+        command: &mut Command,
+        rustflags_env: K,
+        new_flag: V,
+        target: &str,
+    ) where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        let env_key = rustflags_env.as_ref();
+        let flag_str = new_flag.as_ref().to_string_lossy();
+
+        // Try to load existing rustflags from cargo config, fall back to env vars if it fails
+        let mut combined_flags = String::new();
+        
+        if let Ok(cargo_config) = cargo_config2::Config::load() {
+            if let Ok(existing_flags) = cargo_config.rustflags(target) {
+                if let Some(flags) = existing_flags {
+                    if !flags.flags.is_empty() {
+                        if let Ok(encoded) = flags.encode() {
+                            combined_flags = encoded;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback: check environment variables if cargo config loading failed
+        if combined_flags.is_empty() {
+            // Check if RUSTFLAGS is already set in the command environment
+            if let Some((_, existing_value)) = command.get_envs().find(|(key, _)| *key == env_key) {
+                if let Some(existing) = existing_value {
+                    combined_flags = existing.to_string_lossy().to_string();
+                }
+            } else if let Ok(existing) = env::var(env_key) {
+                // Check if it's already set in the process environment
+                combined_flags = existing;
+            }
+        }
+
+        // Check if our flag is already present
+        if !combined_flags.contains(&*flag_str) {
+            if !combined_flags.is_empty() {
+                combined_flags.push(' ');
+            }
+            combined_flags.push_str(&flag_str);
+        }
+
+        // Set the combined flags
+        if !combined_flags.is_empty() {
+            command.env(env_key, combined_flags);
+        }
+    }
+
     pub(crate) fn apply_command_env(
         manifest_path: Option<&Path>,
         release: bool,
@@ -580,6 +642,15 @@ impl Zig {
             }
 
             Self::add_env_if_missing(cmd, format!("RANLIB_{env_target}"), &zig_wrapper.ranlib);
+
+            // Set up dlltool for windows-gnu targets
+            if parsed_target.contains("windows-gnu") {
+                // Use -Cdlltool=<path> rustc flag instead of environment variables
+                let rustflags_env = format!("CARGO_TARGET_{}_RUSTFLAGS", env_target.to_uppercase());
+                let dlltool_flag = format!("-Cdlltool={}", zig_wrapper.dlltool.display());
+                Self::add_rustflags(cmd, rustflags_env, dlltool_flag, parsed_target);
+            }
+
             // Only setup AR when explicitly asked to
             // because it need special executable name handling, see src/bin/cargo-zigbuild.rs
             if enable_zig_ar {
@@ -1035,6 +1106,13 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
+        // Add dlltool for Windows mingw targets
+        if target.contains("windows-gnu") {
+            content.push_str(&format!(
+                "\nset(CMAKE_DLLTOOL {})\n",
+                zig_wrapper.dlltool.to_slash_lossy()
+            ));
+        }
         write_file(&toolchain_file, &content)?;
         Ok(toolchain_file)
     }
@@ -1116,6 +1194,7 @@ pub struct ZigWrapper {
     pub ar: PathBuf,
     pub ranlib: PathBuf,
     pub lib: PathBuf,
+    pub dlltool: PathBuf,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -1404,6 +1483,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     symlink_wrapper(&zig_ar)?;
     let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
     symlink_wrapper(&zig_lib)?;
+    let zig_dlltool = zig_linker_dir.join(format!("dlltool{exe_ext}"));
+    symlink_wrapper(&zig_dlltool)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
@@ -1411,6 +1492,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         ar: zig_ar,
         ranlib: zig_ranlib,
         lib: zig_lib,
+        dlltool: zig_dlltool,
     })
 }
 
@@ -1572,6 +1654,24 @@ mod tests {
             let flags = TargetFlags::parse_from_encoded(OsStr::new(&encoded_rust_flags)).unwrap();
             assert_eq!(flags.target_cpu, *expected_target_cpu, "{}", input);
             assert_eq!(flags.target_feature, *expected_target_feature, "{}", input);
+        }
+    }
+
+    #[test]
+    fn test_dlltool_command_recognition() {
+        // Test that dlltool variants are properly handled in the execute method
+        let zig_dlltool = Zig::Dlltool {
+            args: vec!["--help".to_string()],
+        };
+
+        // The execute method should route to execute_tool for dlltool
+        // We can't test the actual execution without zig installed,
+        // but we can verify the enum variant exists and compiles
+        match zig_dlltool {
+            Zig::Dlltool { args } => {
+                assert_eq!(args, vec!["--help".to_string()]);
+            }
+            _ => panic!("Expected Dlltool variant"),
         }
     }
 }
