@@ -837,6 +837,7 @@ impl Zig {
         // Never include default include directories,
         // otherwise `__has_include` will be totally confused.
         args.push("-nostdinc".to_owned());
+        args.push("-std=c++23".to_owned());
 
         // Add various options for libc++ and glibc.
         // Should match what `Compilation.zig` internally does:
@@ -851,19 +852,56 @@ impl Zig {
             // https://github.com/ziglang/zig/pull/16098
             args.push("-D_LARGEFILE64_SOURCE".to_owned());
         }
+        // ABI version: emscripten uses 2, others use 1
+        let abi_version = if raw_target.contains("emscripten") {
+            "2"
+        } else {
+            "1"
+        };
+
         args.extend(
             [
+                "-DNDEBUG",
+                "-DLIBC_NAMESPACE=__llvm_libc_common_utils",
+                "-D_LIBCPP_BUILDING_LIBRARY",
+                "-DLIBCXX_BUILDING_LIBCXXABI",
+                "-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER",
                 "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
                 "-D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS",
                 "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
-                "-D_LIBCPP_PSTL_CPU_BACKEND_SERIAL",
-                "-D_LIBCPP_ABI_VERSION=1",
-                "-D_LIBCPP_ABI_NAMESPACE=__1",
+                "-D_LIBCPP_PSTL_BACKEND_SERIAL",
                 "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST",
+                "-D_LIBCPP_HAS_MONOTONIC_CLOCK",
+                "-D_LIBCPP_HAS_TERMINAL",
+                "-D_LIBCPP_HAS_RANDOM_DEVICE",
+                "-D_LIBCPP_HAS_LOCALIZATION",
+                "-D_LIBCPP_HAS_UNICODE",
+                "-D_LIBCPP_HAS_WIDE_CHARACTERS",
+                "-D_LIBCPP_HAS_NO_STD_MODULES",
+                "-D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS",
             ]
             .into_iter()
             .map(ToString::to_string),
         );
+
+        // Add ABI version and namespace
+        args.push(format!("-D_LIBCPP_ABI_VERSION={}", abi_version));
+        args.push(format!("-D_LIBCPP_ABI_NAMESPACE=__{}", abi_version));
+
+        // Add threading support flag
+        if raw_target.contains("single-threaded") {
+            args.push("-D_LIBCPP_HAS_NO_THREADS".to_owned());
+        }
+
+        // Add filesystem support flag for WASI
+        if raw_target.contains("wasi") {
+            args.push("-D_LIBCPP_HAS_NO_FILESYSTEM".to_owned());
+        }
+
+        // Add time zone database support for Linux
+        if raw_target.contains("linux") {
+            args.push("-D_LIBCPP_HAS_TIME_ZONE_DATABASE".to_owned());
+        }
         if let Some(ver) = c_opts.glibc_minor_ver {
             // Handled separately because we have no way to infer this without Zig
             args.push(format!("-D__GLIBC_MINOR__={ver}"));
