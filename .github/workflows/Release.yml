@@ -63,7 +63,7 @@ jobs:
             target: aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Build
         uses: PyO3/maturin-action@v1
