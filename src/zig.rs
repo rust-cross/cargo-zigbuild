@@ -1271,7 +1271,23 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 "s390x" => "s390x",
                 _ => arch.as_str(),
             };
-            cc_args.push(format!("-target {zig_arch}-linux-{target_env}{abi_suffix}"));
+            let mut zig_target_env = target_env.to_string();
+
+            let zig_version = Zig::zig_version()?;
+
+            // Since Zig 0.15.0, arm-linux-ohos changed to arm-linux-ohoseabi
+            // We need to follow the change but target_lexicon follow the LLVM target(https://github.com/bytecodealliance/target-lexicon/pull/123).
+            // So we use string directly.
+            if zig_version >= semver::Version::new(0, 15, 0)
+                && arch.as_str() == "arm"
+                && target_env == Environment::Ohos
+            {
+                zig_target_env = "ohoseabi".to_string();
+            }
+
+            cc_args.push(format!(
+                "-target {zig_arch}-linux-{zig_target_env}{abi_suffix}"
+            ));
         }
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin(_) => {
             let zig_version = Zig::zig_version()?;
