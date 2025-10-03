@@ -1279,7 +1279,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
             // We need to follow the change but target_lexicon follow the LLVM target(https://github.com/bytecodealliance/target-lexicon/pull/123).
             // So we use string directly.
             if zig_version >= semver::Version::new(0, 15, 0)
-                && arch.as_str() == "arm"
+                && arch.as_str() == "armv7"
                 && target_env == Environment::Ohos
             {
                 zig_target_env = "ohoseabi".to_string();
