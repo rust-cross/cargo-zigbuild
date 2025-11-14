@@ -69,6 +69,7 @@ struct TargetInfo {
     is_mips32: bool,
     is_macos: bool,
     is_ohos: bool,
+    is_freebsd: bool,
 }
 
 impl TargetInfo {
@@ -90,6 +91,7 @@ impl TargetInfo {
                 .unwrap_or_default(),
             is_macos: target.map(|x| x.contains("macos")).unwrap_or_default(),
             is_ohos: target.map(|x| x.contains("ohos")).unwrap_or_default(),
+            is_freebsd: target.map(|x| x.contains("freebsd")).unwrap_or_default(),
         }
     }
 }
@@ -363,6 +365,12 @@ impl Zig {
             }
             if arg == "-Wl,-dylib" {
                 // zig doesn't support -dylib
+                return vec![];
+            }
+        }
+        if target_info.is_freebsd {
+            let ignored_libs = ["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"];
+            if ignored_libs.contains(&arg) {
                 return vec![];
             }
         }
@@ -1307,6 +1315,20 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         }
         OperatingSystem::WasiP1 => {
             cc_args.push(format!("-target {arch}-wasi.0.1.0{abi_suffix}"));
+        }
+        OperatingSystem::Freebsd => {
+            let zig_arch = match arch.as_str() {
+                "i686" => {
+                    let zig_version = Zig::zig_version()?;
+                    if zig_version.major == 0 && zig_version.minor >= 11 {
+                        "x86"
+                    } else {
+                        "i386"
+                    }
+                }
+                arch => arch,
+            };
+            cc_args.push(format!("-target {zig_arch}-freebsd"));
         }
         OperatingSystem::Unknown => {
             if triple.architecture == Architecture::Wasm32
