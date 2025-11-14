@@ -1,4 +1,4 @@
-ARG PREV_ZIGBUILD_IMG=start9/cargo-zigbuild
+ARG PREV_ZIGBUILD_IMG=ghcr.io/rust-cross/cargo-zigbuild
 ARG RUST_VERSION=1.91.1
 ARG BUILDPLATFORM
 
