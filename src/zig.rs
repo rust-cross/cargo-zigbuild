@@ -12,6 +12,8 @@ use std::str;
 use anyhow::{anyhow, bail, Context, Result};
 use fs_err as fs;
 use path_slash::PathBufExt;
+#[cfg(not(target_family = "unix"))]
+use path_slash::PathExt;
 use serde::Deserialize;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
@@ -1412,20 +1414,26 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         }
     }
 
+    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
+        PathBuf::from(exe)
+    } else {
+        env::current_exe()?
+    };
     let cc_args_str = cc_args.join(" ");
-    let hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC).checksum(cc_args_str.as_bytes());
+    let hash_input = current_exe.display().to_string() + &cc_args_str;
+    let hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC).checksum(hash_input.as_bytes());
     let zig_cc = zig_linker_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
     let zig_cxx = zig_linker_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
     let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{file_ext}"));
-    write_linker_wrapper(&zig_cc, "cc", &cc_args_str)?;
-    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str)?;
-    write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
+    write_linker_wrapper(&current_exe, &zig_cc, "cc", &cc_args_str)?;
+    write_linker_wrapper(&current_exe, &zig_cxx, "c++", &cc_args_str)?;
+    write_linker_wrapper(&current_exe, &zig_ranlib, "ranlib", "")?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-    let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
-    symlink_wrapper(&zig_ar)?;
-    let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
-    symlink_wrapper(&zig_lib)?;
+    let zig_ar = zig_linker_dir.join(format!("ar-{:x}{exe_ext}", hash));
+    symlink_wrapper(&current_exe, &zig_ar)?;
+    let zig_lib = zig_linker_dir.join(format!("lib-{:x}{exe_ext}", hash));
+    symlink_wrapper(&current_exe, &zig_lib)?;
 
     Ok(ZigWrapper {
         cc: zig_cc,
@@ -1436,12 +1444,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     })
 }
 
-fn symlink_wrapper(target: &Path) -> Result<()> {
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
+fn symlink_wrapper(current_exe: &Path, target: &Path) -> Result<()> {
     #[cfg(windows)]
     {
         if !target.exists() {
@@ -1468,13 +1471,8 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
 
 /// Write a zig cc wrapper batch script for unix
 #[cfg(target_family = "unix")]
-fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
+fn write_linker_wrapper(current_exe: &Path, path: &Path, command: &str, args: &str) -> Result<()> {
     let mut buf = Vec::<u8>::new();
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
     writeln!(&mut buf, "#!/bin/sh")?;
     writeln!(
         &mut buf,
@@ -1502,13 +1500,8 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
 
 /// Write a zig cc wrapper batch script for windows
 #[cfg(not(target_family = "unix"))]
-fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
+fn write_linker_wrapper(current_exe: &Path, path: &Path, command: &str, args: &str) -> Result<()> {
     let mut buf = Vec::<u8>::new();
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
     let current_exe = if is_mingw_shell() {
         current_exe.to_slash_lossy().to_string()
     } else {
