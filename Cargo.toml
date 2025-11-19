@@ -7,7 +7,7 @@ license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/rust-cross/cargo-zigbuild"
-rust-version = "1.74"
+rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,7 +15,7 @@ rust-version = "1.74"
 anyhow = "1.0.53"
 cargo-config2 = "0.1.24"
 cargo-options = "0.7.4"
-cargo_metadata = "0.19.0"
+cargo_metadata = "0.20.0"
 clap = { version = "4.3.0", features = ["derive", "env", "wrap_help", "unstable-styles"] }
 crc = "3.2.1"
 dirs = "5.0.0"
