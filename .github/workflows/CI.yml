@@ -32,11 +32,11 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-13, windows-latest]
-        toolchain: [1.74.0, stable, nightly]
+        toolchain: [1.85.0, stable, nightly]
         zig: [0.11.0, 0.14.1, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.74.0
+          - toolchain: 1.85.0
             zig: master
     env:
       RUST_BACKTRACE: "1"
@@ -65,8 +65,6 @@ jobs:
             x86_64-pc-windows-gnu \
             i686-pc-windows-gnu
       - name: Test bindgen
-        # zstd with bindgen requires Rust 1.77+
-        if: ${{ matrix.toolchain != '1.74.0' }}
         shell: bash
         run: |
           set -e
@@ -134,7 +132,7 @@ jobs:
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-tls/Cargo.toml
           cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-rustls/Cargo.toml
       - name: macOS - Test build bindgen with SDKROOT
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.toolchain != '1.74.0' }}
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           SDK: MacOSX11.3.sdk
         run: cargo run zigbuild --manifest-path tests/zstd-rs/Cargo.toml --features bindgen --target aarch64-apple-darwin
