@@ -21,7 +21,8 @@ jobs:
       - name: Build
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --strip --universal2
+          target: universal2-apple-darwin
+          args: --release --out dist --strip
           # sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v5
