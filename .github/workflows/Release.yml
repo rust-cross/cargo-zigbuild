@@ -34,21 +34,6 @@ jobs:
           name: apple-darwin-bin
           path: target/release/cargo-zigbuild
           if-no-files-found: error
-      - name: Archive binary
-        if: "startsWith(github.ref, 'refs/tags/')"
-        run: |
-          cd target/release
-          tar czvf cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz cargo-zigbuild
-          shasum -a 256 cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz > cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz.sha256
-          cd -
-      - name: Upload binary to GitHub Release
-        if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            target/release/cargo-zigbuild*.tar.gz*
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
-          generate_release_notes: true
 
   windows:
     runs-on: windows-latest
@@ -82,22 +67,6 @@ jobs:
           name: windows-${{ matrix.platform.arch }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild.exe
           if-no-files-found: error
-      - name: Archive binary
-        if: "startsWith(github.ref, 'refs/tags/')"
-        run: |
-          cd target/${{ matrix.platform.target }}/release
-          7z a cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip cargo-zigbuild.exe
-          $sha256 = (Get-FileHash cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip -Algorithm SHA256).Hash.ToLower()
-          "$sha256  cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip" | Out-File cargo-zigbuild-${{ github.ref_name }}.windows-${{ matrix.platform.arch }}.zip.sha256
-          cd -
-      - name: Upload binary to GitHub Release
-        if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            target/${{ matrix.platform.target }}/release/cargo-zigbuild-*.zip*
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
-          generate_release_notes: true
 
   linux:
     runs-on: ubuntu-latest
@@ -135,21 +104,6 @@ jobs:
           name: ${{ matrix.platform.target }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild
           if-no-files-found: error
-      - name: Archive binary
-        if: "startsWith(github.ref, 'refs/tags/')"
-        run: |
-          cd target/${{ matrix.platform.target }}/release
-          tar czvf cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz cargo-zigbuild
-          shasum -a 256 cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz > cargo-zigbuild-${{ github.ref_name }}.${{ matrix.platform.target }}.tar.gz.sha256
-          cd -
-      - name: Upload binary to GitHub Release
-        if: "startsWith(github.ref, 'refs/tags/')"
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            target/${{ matrix.platform.target }}/release/cargo-zigbuild*.tar.gz*
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
-          generate_release_notes: true
 
   docker:
     name: Build Docker Image
@@ -205,8 +159,8 @@ jobs:
           password: ${{ secrets.DOCKER_TOKEN }}
           repository: ${{ secrets.DOCKER_USERNAME }}/cargo-zigbuild
 
-  release:
-    name: Release
+  release-pypi:
+    name: Release PyPI
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: [ macos, windows, linux ]
@@ -222,3 +176,45 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
+
+  release-github:
+    name: Release GitHub
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: [ macos, windows, linux ]
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: '*-bin'
+          path: bins
+      - name: Archive binaries
+        run: |
+          set -ex
+          mkdir -p dist
+          # macOS universal binary
+          cd bins/apple-darwin-bin
+          chmod +x cargo-zigbuild
+          tar czvf ../../dist/cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz cargo-zigbuild
+          cd ../..
+          shasum -a 256 dist/cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz > dist/cargo-zigbuild-${{ github.ref_name }}.apple-darwin.tar.gz.sha256
+          # Windows binaries
+          for arch in x64 x86 arm64; do
+            cd bins/windows-${arch}-bin
+            zip ../../dist/cargo-zigbuild-${{ github.ref_name }}.windows-${arch}.zip cargo-zigbuild.exe
+            cd ../..
+            sha256sum dist/cargo-zigbuild-${{ github.ref_name }}.windows-${arch}.zip > dist/cargo-zigbuild-${{ github.ref_name }}.windows-${arch}.zip.sha256
+          done
+          # Linux binaries
+          for target in x86_64-unknown-linux-musl i686-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf armv7-unknown-linux-musleabi; do
+            cd bins/${target}-bin
+            chmod +x cargo-zigbuild
+            tar czvf ../../dist/cargo-zigbuild-${{ github.ref_name }}.${target}.tar.gz cargo-zigbuild
+            cd ../..
+            sha256sum dist/cargo-zigbuild-${{ github.ref_name }}.${target}.tar.gz > dist/cargo-zigbuild-${{ github.ref_name }}.${target}.tar.gz.sha256
+          done
+      - name: Upload binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          generate_release_notes: true
