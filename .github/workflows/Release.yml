@@ -25,12 +25,12 @@ jobs:
           args: --release --out dist --strip
           # sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-macos-universal2
           path: dist
       - name: Upload binary artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: apple-darwin-bin
           path: target/release/cargo-zigbuild
@@ -58,12 +58,12 @@ jobs:
           args: --release --out dist --strip
           # sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-${{ matrix.platform.arch }}
           path: dist
       - name: Upload binary artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: windows-${{ matrix.platform.arch }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild.exe
@@ -95,12 +95,12 @@ jobs:
           args: --release -o dist --strip
           # sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-${{ matrix.platform.target }}
           path: dist
       - name: Upload binary artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.platform.target }}-bin
           path: target/${{ matrix.platform.target }}/release/cargo-zigbuild
