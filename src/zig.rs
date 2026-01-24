@@ -8,6 +8,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::str;
+use std::sync::OnceLock;
 
 use anyhow::{anyhow, bail, Context, Result};
 use fs_err as fs;
@@ -164,7 +165,16 @@ impl Zig {
             self.add_macos_specific_args(&mut new_cmd_args, &zig_version)?;
         }
 
-        let mut child = Self::command()?
+        // For Zig >= 0.15 with macOS, set SDKROOT environment variable
+        // if it exists, instead of passing --sysroot
+        let mut command = Self::command()?;
+        if (zig_version.major, zig_version.minor) >= (0, 15) {
+            if let Some(sdkroot) = Self::macos_sdk_root() {
+                command.env("SDKROOT", sdkroot);
+            }
+        }
+
+        let mut child = command
             .arg(cmd)
             .args(new_cmd_args)
             .spawn()
@@ -402,12 +412,17 @@ impl Zig {
         let sdkroot = Self::macos_sdk_root();
         if (zig_version.major, zig_version.minor) >= (0, 12) {
             // Zig 0.12.0+ requires passing `--sysroot`
+            // However, for Zig 0.15+, we should use SDKROOT environment variable instead
+            // to avoid issues with library paths being interpreted relative to sysroot
             if let Some(ref sdkroot) = sdkroot {
-                new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
+                if (zig_version.major, zig_version.minor) < (0, 15) {
+                    new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
+                }
+                // For Zig >= 0.15, SDKROOT will be set as environment variable
             }
         }
         if let Some(ref sdkroot) = sdkroot {
-            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 14) {
+            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 15) {
                 sdkroot
             } else {
                 Path::new("/")
@@ -461,18 +476,29 @@ impl Zig {
     }
 
     fn zig_version() -> Result<semver::Version> {
+        static ZIG_VERSION: OnceLock<semver::Version> = OnceLock::new();
+
+        if let Some(version) = ZIG_VERSION.get() {
+            return Ok(version.clone());
+        }
         let output = Self::command()?.arg("version").output()?;
         let version_str =
             str::from_utf8(&output.stdout).context("`zig version` didn't return utf8 output")?;
         let version = semver::Version::parse(version_str.trim())?;
-        Ok(version)
+        Ok(ZIG_VERSION.get_or_init(|| version).clone())
     }
 
     /// Search for `python -m ziglang` first and for `zig` second.
     pub fn find_zig() -> Result<(PathBuf, Vec<String>)> {
-        Self::find_zig_python()
+        static ZIG_PATH: OnceLock<(PathBuf, Vec<String>)> = OnceLock::new();
+
+        if let Some(cached) = ZIG_PATH.get() {
+            return Ok(cached.clone());
+        }
+        let result = Self::find_zig_python()
             .or_else(|_| Self::find_zig_bin())
-            .context("Failed to find zig")
+            .context("Failed to find zig")?;
+        Ok(ZIG_PATH.get_or_init(|| result).clone())
     }
 
     /// Detect the plain zig binary
@@ -520,10 +546,17 @@ impl Zig {
 
     /// Find zig lib directory
     pub fn lib_dir() -> Result<PathBuf> {
+        static LIB_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+        if let Some(cached) = LIB_DIR.get() {
+            return Ok(cached.clone());
+        }
         let (zig, zig_args) = Self::find_zig()?;
         let output = Command::new(zig).args(zig_args).arg("env").output()?;
         let zig_env: ZigEnv = serde_json::from_slice(&output.stdout)?;
-        Ok(PathBuf::from(zig_env.lib_dir))
+        Ok(LIB_DIR
+            .get_or_init(|| PathBuf::from(zig_env.lib_dir))
+            .clone())
     }
 
     fn add_env_if_missing<K, V>(command: &mut Command, name: K, value: V)
@@ -1049,31 +1082,27 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
 
     #[cfg(target_os = "macos")]
     fn macos_sdk_root() -> Option<PathBuf> {
-        match env::var_os("SDKROOT") {
-            Some(sdkroot) => {
-                if !sdkroot.is_empty() {
-                    Some(sdkroot.into())
-                } else {
-                    None
-                }
-            }
-            None => {
-                let output = Command::new("xcrun")
-                    .args(["--sdk", "macosx", "--show-sdk-path"])
-                    .output();
-                if let Ok(output) = output {
+        static SDK_ROOT: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+        SDK_ROOT
+            .get_or_init(|| match env::var_os("SDKROOT") {
+                Some(sdkroot) if !sdkroot.is_empty() => Some(sdkroot.into()),
+                _ => {
+                    let output = Command::new("xcrun")
+                        .args(["--sdk", "macosx", "--show-sdk-path"])
+                        .output()
+                        .ok()?;
                     if output.status.success() {
-                        if let Ok(stdout) = String::from_utf8(output.stdout) {
-                            let stdout = stdout.trim();
-                            if !stdout.is_empty() {
-                                return Some(stdout.into());
-                            }
+                        let stdout = String::from_utf8(output.stdout).ok()?;
+                        let stdout = stdout.trim();
+                        if !stdout.is_empty() {
+                            return Some(stdout.into());
                         }
                     }
+                    None
                 }
-                None
-            }
-        }
+            })
+            .clone()
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -1492,6 +1521,12 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         env::current_exe()?
     };
     writeln!(&mut buf, "#!/bin/sh")?;
+
+    // For Zig >= 0.14 with macOS, pass through SDKROOT environment variable
+    // if it exists at runtime (instead of passing --sysroot)
+    // This avoids issues with library paths being interpreted relative to sysroot
+    writeln!(&mut buf, "if [ -n \"$SDKROOT\" ]; then export SDKROOT; fi")?;
+
     writeln!(
         &mut buf,
         "exec \"{}\" zig {} -- {} \"$@\"",
