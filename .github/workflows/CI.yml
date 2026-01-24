@@ -123,7 +123,8 @@ jobs:
       - name: macOS - Test build universal2
         run: cargo run zigbuild --target universal2-apple-darwin
       - name: macOS - Test build with SDKROOT
-        if: matrix.os == 'ubuntu-latest'
+        # Zig 0.14+ doesn't properly configure framework search paths for cross-compilation
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.zig == '0.11.0' }}
         env:
           SDK: MacOSX11.3.sdk
         run: |
