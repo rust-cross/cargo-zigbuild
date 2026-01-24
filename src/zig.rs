@@ -164,7 +164,17 @@ impl Zig {
             self.add_macos_specific_args(&mut new_cmd_args, &zig_version)?;
         }
 
-        let mut child = Self::command()?
+        // For Zig >= 0.15 with macOS, set SDKROOT environment variable
+        // if it exists, instead of passing --sysroot
+        let zig_version = Zig::zig_version()?;
+        let mut command = Self::command()?;
+        if (zig_version.major, zig_version.minor) >= (0, 15) {
+            if let Some(sdkroot) = Self::macos_sdk_root() {
+                command.env("SDKROOT", sdkroot);
+            }
+        }
+
+        let mut child = command
             .arg(cmd)
             .args(new_cmd_args)
             .spawn()
@@ -402,12 +412,17 @@ impl Zig {
         let sdkroot = Self::macos_sdk_root();
         if (zig_version.major, zig_version.minor) >= (0, 12) {
             // Zig 0.12.0+ requires passing `--sysroot`
+            // However, for Zig 0.15+, we should use SDKROOT environment variable instead
+            // to avoid issues with library paths being interpreted relative to sysroot
             if let Some(ref sdkroot) = sdkroot {
-                new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
+                if (zig_version.major, zig_version.minor) < (0, 15) {
+                    new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
+                }
+                // For Zig >= 0.15, SDKROOT will be set as environment variable
             }
         }
         if let Some(ref sdkroot) = sdkroot {
-            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 14) {
+            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 15) {
                 sdkroot
             } else {
                 Path::new("/")
@@ -1492,6 +1507,12 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         env::current_exe()?
     };
     writeln!(&mut buf, "#!/bin/sh")?;
+
+    // For Zig >= 0.14 with macOS, pass through SDKROOT environment variable
+    // if it exists at runtime (instead of passing --sysroot)
+    // This avoids issues with library paths being interpreted relative to sysroot
+    writeln!(&mut buf, "if [ -n \"$SDKROOT\" ]; then export SDKROOT; fi")?;
+
     writeln!(
         &mut buf,
         "exec \"{}\" zig {} -- {} \"$@\"",
