@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.87.0
+ARG RUST_VERSION=1.93.0
 
 FROM rust:$RUST_VERSION as builder
 
@@ -21,8 +21,24 @@ FROM rust:$RUST_VERSION
 
 # Install Zig
 ARG ZIG_VERSION=0.13.0
-RUN curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-$(uname -m)-${ZIG_VERSION}.tar.xz" | tar -J -x -C /usr/local && \
-    ln -s "/usr/local/zig-linux-$(uname -m)-${ZIG_VERSION}/zig" /usr/local/bin/zig
+# Zig 0.14.0+ changed the tarball naming convention: zig-{arch}-{os}-{version} instead of zig-{os}-{arch}-{version}
+# We detect the version and construct the appropriate URL and directory path
+RUN \
+    ARCH=$(uname -m) && \
+    MAJOR=$(echo "$ZIG_VERSION" | cut -d. -f1) && \
+    MINOR=$(echo "$ZIG_VERSION" | cut -d. -f2) && \
+    if [ "$MAJOR" -eq 0 ] && [ "$MINOR" -lt 14 ]; then \
+        TARBALL="zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" && \
+        DIR="zig-linux-${ARCH}-${ZIG_VERSION}"; \
+    else \
+        TARBALL="zig-${ARCH}-linux-${ZIG_VERSION}.tar.xz" && \
+        DIR="zig-${ARCH}-linux-${ZIG_VERSION}"; \
+    fi && \
+    curl -L "https://ziglang.org/download/${ZIG_VERSION}/${TARBALL}" | tar -J -x -C /usr/local && \
+    ln -s "/usr/local/${DIR}/zig" /usr/local/bin/zig
+
+# Install libclang (needed for bindgen)
+RUN apt-get update && apt-get install -y libclang-dev clang && rm -rf /var/lib/apt/lists/*
 
 # Install macOS SDKs
 RUN curl -L "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.9.sdk.tar.xz" | tar -J -x -C /opt
