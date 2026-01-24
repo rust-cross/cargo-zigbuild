@@ -1,6 +1,6 @@
 [package]
 name = "cargo-zigbuild"
-version = "0.21.1"
+version = "0.21.2"
 edition = "2021"
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
@@ -10,6 +10,9 @@ repository = "https://github.com/rust-cross/cargo-zigbuild"
 rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }.{ target }.{ archive-format }"
 
 [dependencies]
 anyhow = "1.0.53"
