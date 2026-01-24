@@ -57,6 +57,13 @@ pub enum Zig {
         #[arg(num_args = 1.., trailing_var_arg = true)]
         args: Vec<String>,
     },
+    /// `zig dlltool` wrapper
+    #[command(name = "dlltool")]
+    Dlltool {
+        /// `zig dlltool` arguments
+        #[arg(num_args = 1.., trailing_var_arg = true)]
+        args: Vec<String>,
+    },
 }
 
 struct TargetInfo {
@@ -106,6 +113,7 @@ impl Zig {
             Zig::Ar { args } => self.execute_tool("ar", args),
             Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
             Zig::Lib { args } => self.execute_compiler("lib", args),
+            Zig::Dlltool { args } => self.execute_tool("dlltool", args),
         }
     }
 
@@ -648,6 +656,14 @@ impl Zig {
 
             if raw_target.contains("windows-gnu") {
                 cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
+                // Add the cache directory to PATH so rustc can find architecture-specific dlltool
+                // (e.g., x86_64-w64-mingw32-dlltool)
+                let cache_dir = cache_dir();
+                let existing_path = env::var_os("PATH").unwrap_or_default();
+                let paths = std::iter::once(cache_dir).chain(env::split_paths(&existing_path));
+                if let Ok(new_path) = env::join_paths(paths) {
+                    cmd.env("PATH", new_path);
+                }
             }
 
             if raw_target.contains("apple-darwin") {
@@ -1471,6 +1487,28 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     symlink_wrapper(&zig_ar)?;
     let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
     symlink_wrapper(&zig_lib)?;
+
+    // Create dlltool symlinks for Windows GNU targets
+    // On Windows hosts, rustc looks for "dlltool.exe"
+    // On non-Windows hosts, rustc looks for architecture-specific names
+    //
+    // See https://github.com/rust-lang/rust/blob/a18e6d9d1473d9b25581dd04bef6c7577999631c/compiler/rustc_codegen_ssa/src/back/archive.rs#L275-L309
+    if matches!(triple.operating_system, OperatingSystem::Windows)
+        && matches!(triple.environment, Environment::Gnu)
+    {
+        let dlltool_name: &str = if cfg!(windows) {
+            "dlltool"
+        } else {
+            match triple.architecture {
+                Architecture::X86_64 => "x86_64-w64-mingw32-dlltool",
+                Architecture::X86_32(_) => "i686-w64-mingw32-dlltool",
+                Architecture::Aarch64(_) => "aarch64-w64-mingw32-dlltool",
+                _ => "dlltool",
+            }
+        };
+        let zig_dlltool = zig_linker_dir.join(format!("{dlltool_name}{exe_ext}"));
+        symlink_wrapper(&zig_dlltool)?;
+    }
 
     Ok(ZigWrapper {
         cc: zig_cc,
