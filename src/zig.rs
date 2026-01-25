@@ -149,8 +149,10 @@ impl Zig {
                 self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info)
             };
             for arg in args {
-                if arg == "-Wl,-exported_symbols_list" {
+                if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
                     // Filter out this and the next argument
+                    // zig cc doesn't pass these through to lld even though lld supports them
+                    // See https://github.com/rust-cross/cargo-zigbuild/issues/355
                     skip_next_arg = true;
                 } else {
                     new_cmd_args.push(arg);
