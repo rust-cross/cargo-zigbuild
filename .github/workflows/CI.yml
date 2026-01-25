@@ -50,6 +50,7 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: ${{ matrix.zig }}
+          use-cache: false
       - run: zig version
       - run: cargo build
       - name: Install Rust targets
