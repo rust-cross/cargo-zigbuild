@@ -502,6 +502,12 @@ impl Zig {
         if let Some(version) = ZIG_VERSION.get() {
             return Ok(version.clone());
         }
+        // Check for cached version from environment variable first
+        if let Ok(version_str) = env::var("CARGO_ZIGBUILD_ZIG_VERSION") {
+            if let Ok(version) = semver::Version::parse(&version_str) {
+                return Ok(ZIG_VERSION.get_or_init(|| version).clone());
+            }
+        }
         let output = Self::command()?.arg("version").output()?;
         let version_str =
             str::from_utf8(&output.stdout).context("`zig version` didn't return utf8 output")?;
@@ -1499,9 +1505,10 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let zig_cc = zig_linker_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
     let zig_cxx = zig_linker_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
     let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{file_ext}"));
-    write_linker_wrapper(&zig_cc, "cc", &cc_args_str)?;
-    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str)?;
-    write_linker_wrapper(&zig_ranlib, "ranlib", "")?;
+    let zig_version = Zig::zig_version()?;
+    write_linker_wrapper(&zig_cc, "cc", &cc_args_str, &zig_version)?;
+    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str, &zig_version)?;
+    write_linker_wrapper(&zig_ranlib, "ranlib", "", &zig_version)?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
     let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
@@ -1627,7 +1634,12 @@ where
 
 /// Write a zig cc wrapper batch script for unix
 #[cfg(target_family = "unix")]
-fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
+fn write_linker_wrapper(
+    path: &Path,
+    command: &str,
+    args: &str,
+    zig_version: &semver::Version,
+) -> Result<()> {
     let mut buf = Vec::<u8>::new();
     let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
@@ -1635,6 +1647,13 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
         env::current_exe()?
     };
     writeln!(&mut buf, "#!/bin/sh")?;
+
+    // Export zig version to avoid spawning `zig version` subprocess
+    writeln!(
+        &mut buf,
+        "export CARGO_ZIGBUILD_ZIG_VERSION={}",
+        zig_version
+    )?;
 
     // For Zig >= 0.14 with macOS, pass through SDKROOT environment variable
     // if it exists at runtime (instead of passing --sysroot)
@@ -1667,7 +1686,12 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
 
 /// Write a zig cc wrapper batch script for windows
 #[cfg(not(target_family = "unix"))]
-fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
+fn write_linker_wrapper(
+    path: &Path,
+    command: &str,
+    args: &str,
+    zig_version: &semver::Version,
+) -> Result<()> {
     let mut buf = Vec::<u8>::new();
     let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
         PathBuf::from(exe)
@@ -1682,6 +1706,8 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     writeln!(&mut buf, "@echo off")?;
     // Prevent `!VAR!` expansion surprises (delayed expansion) in user-controlled args.
     writeln!(&mut buf, "setlocal DisableDelayedExpansion")?;
+    // Set zig version to avoid spawning `zig version` subprocess
+    writeln!(&mut buf, "set CARGO_ZIGBUILD_ZIG_VERSION={}", zig_version)?;
     writeln!(
         &mut buf,
         "\"{}\" zig {} -- {} %*",
