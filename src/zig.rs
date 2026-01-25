@@ -702,15 +702,15 @@ impl Zig {
                 // everyone seems to miss `#import <TargetConditionals.h>`...
                 options.push("-DTARGET_OS_IPHONE=0".to_string());
             }
-            let escaped_options = shlex::try_join(options.iter().map(|s| &s[..]))?;
+            let escaped_options = shell_words::join(options.iter().map(|s| &s[..]));
             let bindgen_env = "BINDGEN_EXTRA_CLANG_ARGS";
             let fallback_value = env::var(bindgen_env);
             for target in [&env_target[..], parsed_target] {
                 let name = format!("{bindgen_env}_{target}");
                 if let Ok(mut value) = env::var(&name).or(fallback_value.clone()) {
-                    if shlex::split(&value).is_none() {
+                    if shell_words::split(&value).is_err() {
                         // bindgen treats the whole string as a single argument if split fails
-                        value = shlex::try_quote(&value)?.into_owned();
+                        value = shell_words::quote(&value).into_owned();
                     }
                     if !value.is_empty() {
                         value.push(' ');
@@ -1346,18 +1346,19 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 zig_target_env = "ohoseabi".to_string();
             }
 
-            cc_args.push(format!(
-                "-target {zig_arch}-linux-{zig_target_env}{abi_suffix}"
-            ));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{zig_arch}-linux-{zig_target_env}{abi_suffix}"));
         }
         OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin(_) => {
             let zig_version = Zig::zig_version()?;
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
             if zig_version > semver::Version::new(0, 9, 1) {
-                cc_args.push(format!("-target {arch}-macos-none{abi_suffix}"));
+                cc_args.push("-target".to_string());
+                cc_args.push(format!("{arch}-macos-none{abi_suffix}"));
             } else {
-                cc_args.push(format!("-target {arch}-macos-gnu{abi_suffix}"));
+                cc_args.push("-target".to_string());
+                cc_args.push(format!("{arch}-macos-gnu{abi_suffix}"));
             }
         }
         OperatingSystem::Windows { .. } => {
@@ -1372,18 +1373,20 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 }
                 arch => arch,
             };
-            cc_args.push(format!(
-                "-target {zig_arch}-windows-{target_env}{abi_suffix}"
-            ));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{zig_arch}-windows-{target_env}{abi_suffix}"));
         }
         OperatingSystem::Emscripten => {
-            cc_args.push(format!("-target {arch}-emscripten{abi_suffix}"));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{arch}-emscripten{abi_suffix}"));
         }
         OperatingSystem::Wasi => {
-            cc_args.push(format!("-target {arch}-wasi{abi_suffix}"));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{arch}-wasi{abi_suffix}"));
         }
         OperatingSystem::WasiP1 => {
-            cc_args.push(format!("-target {arch}-wasi.0.1.0{abi_suffix}"));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{arch}-wasi.0.1.0{abi_suffix}"));
         }
         OperatingSystem::Freebsd => {
             let zig_arch = match arch.as_str() {
@@ -1397,13 +1400,15 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 }
                 arch => arch,
             };
-            cc_args.push(format!("-target {zig_arch}-freebsd"));
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{zig_arch}-freebsd"));
         }
         OperatingSystem::Unknown => {
             if triple.architecture == Architecture::Wasm32
                 || triple.architecture == Architecture::Wasm64
             {
-                cc_args.push(format!("-target {arch}-freestanding{abi_suffix}"));
+                cc_args.push("-target".to_string());
+                cc_args.push(format!("{arch}-freestanding{abi_suffix}"));
             } else {
                 bail!("unsupported target '{rust_target}'")
             }
@@ -1451,7 +1456,8 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                     }
 
                     cc_args.push(format!("-Wl,--version-script={}", fcntl_map.display()));
-                    cc_args.push(format!("-include {}", fcntl_h.display()));
+                    cc_args.push("-include".to_string());
+                    cc_args.push(fcntl_h.display().to_string());
                 }
             }
         } else if matches!(
@@ -1481,7 +1487,9 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
         }
     }
 
-    let cc_args_str = cc_args.join(" ");
+    // Use platform-specific quoting: shell_words for Unix (single quotes),
+    // custom quoting for Windows batch files (double quotes)
+    let cc_args_str = join_args_for_script(&cc_args);
     let hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC).checksum(cc_args_str.as_bytes());
     let zig_cc = zig_linker_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
     let zig_cxx = zig_linker_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
@@ -1555,6 +1563,62 @@ fn symlink_wrapper(target: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Join arguments for Unix shell script using shell_words (single quotes)
+#[cfg(target_family = "unix")]
+fn join_args_for_script<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    shell_words::join(args)
+}
+
+/// Quote a string for Windows batch file (cmd.exe)
+/// Uses double quotes for strings containing special characters
+#[cfg(not(target_family = "unix"))]
+fn quote_for_batch(s: &str) -> String {
+    // Characters that need quoting in batch files
+    let needs_quoting = s.is_empty()
+        || s.contains(|c: char| {
+            matches!(
+                c,
+                ' ' | '\t' | '"' | '&' | '|' | '<' | '>' | '^' | '%' | '(' | ')' | '!'
+            )
+        });
+
+    if !needs_quoting {
+        return s.to_string();
+    }
+
+    // In batch files, double quotes are used for quoting
+    // Internal double quotes are escaped by doubling them
+    let mut quoted = String::with_capacity(s.len() + 2);
+    quoted.push('"');
+    for c in s.chars() {
+        if c == '"' {
+            // Escape double quotes by doubling them
+            quoted.push_str("\"\"");
+        } else {
+            quoted.push(c);
+        }
+    }
+    quoted.push('"');
+    quoted
+}
+
+/// Join arguments for Windows batch file using double quotes
+#[cfg(not(target_family = "unix"))]
+fn join_args_for_script<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    args.into_iter()
+        .map(|s| quote_for_batch(s.as_ref()))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Write a zig cc wrapper batch script for unix
@@ -1692,5 +1756,60 @@ mod tests {
             assert_eq!(flags.target_cpu, *expected_target_cpu, "{}", input);
             assert_eq!(flags.target_feature, *expected_target_feature, "{}", input);
         }
+    }
+
+    #[test]
+    fn test_join_args_for_script() {
+        // Test basic arguments without special characters
+        let args = vec!["-target", "x86_64-linux-gnu"];
+        let result = join_args_for_script(&args);
+        assert!(result.contains("-target"));
+        assert!(result.contains("x86_64-linux-gnu"));
+    }
+
+    #[test]
+    #[cfg(not(target_family = "unix"))]
+    fn test_quote_for_batch() {
+        // Simple argument without special characters - no quoting needed
+        assert_eq!(quote_for_batch("-target"), "-target");
+        assert_eq!(quote_for_batch("x86_64-linux-gnu"), "x86_64-linux-gnu");
+
+        // Arguments with spaces need quoting
+        assert_eq!(
+            quote_for_batch("C:\\Users\\John Doe\\path"),
+            "\"C:\\Users\\John Doe\\path\""
+        );
+
+        // Empty string needs quoting
+        assert_eq!(quote_for_batch(""), "\"\"");
+
+        // Arguments with special batch characters need quoting
+        assert_eq!(quote_for_batch("foo&bar"), "\"foo&bar\"");
+        assert_eq!(quote_for_batch("foo|bar"), "\"foo|bar\"");
+        assert_eq!(quote_for_batch("foo<bar"), "\"foo<bar\"");
+        assert_eq!(quote_for_batch("foo>bar"), "\"foo>bar\"");
+        assert_eq!(quote_for_batch("foo^bar"), "\"foo^bar\"");
+        assert_eq!(quote_for_batch("foo%bar"), "\"foo%bar\"");
+
+        // Internal double quotes are escaped by doubling
+        assert_eq!(quote_for_batch("foo\"bar"), "\"foo\"\"bar\"");
+    }
+
+    #[test]
+    #[cfg(not(target_family = "unix"))]
+    fn test_join_args_for_script_windows() {
+        // Test with path containing spaces
+        let args = vec![
+            "-target",
+            "x86_64-linux-gnu",
+            "-L",
+            "C:\\Users\\John Doe\\path",
+        ];
+        let result = join_args_for_script(&args);
+        // The path with space should be quoted
+        assert!(result.contains("\"C:\\Users\\John Doe\\path\""));
+        // Simple args should not be quoted
+        assert!(result.contains("-target"));
+        assert!(!result.contains("\"-target\""));
     }
 }
