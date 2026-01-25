@@ -321,6 +321,11 @@ impl Zig {
             // https://github.com/rust-lang/rust/blob/c580c498a1fe144d7c5b2dfc7faab1a229aa288b/compiler/rustc_codegen_ssa/src/back/link.rs#L3371
             // zig doesn't support -znostart-stop-gc
             return vec![];
+        } else if arg.starts_with("-Wl,-plugin-opt") {
+            // https://github.com/rust-cross/cargo-zigbuild/issues/369
+            // zig doesn't support -plugin-opt (used for cross-lang LTO with LLVM gold plugin)
+            // Since zig cc is already LLVM-based, ignoring this is fine
+            return vec![];
         }
         if target_info.is_musl || target_info.is_ohos {
             // Avoids duplicated symbols with both zig musl libc and the libc crate
