@@ -129,7 +129,7 @@ jobs:
             type=semver,pattern={{major}}
             type=sha
       - name: Setup QEMU
-        uses: dbhi/qus/action@main
+        uses: docker/setup-qemu-action@v3
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to DockerHub
