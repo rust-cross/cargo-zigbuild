@@ -1576,11 +1576,13 @@ where
 }
 
 /// Quote a string for Windows batch file (cmd.exe)
-/// Uses double quotes for strings containing special characters
+///
+/// - `%` expands even inside quotes, so we escape it as `%%`.
+/// - We disable delayed expansion in the wrapper script, so `!` should not expand.
+/// - Internal `"` are escaped by doubling them (`""`).
 #[cfg(not(target_family = "unix"))]
 fn quote_for_batch(s: &str) -> String {
-    // Characters that need quoting in batch files
-    let needs_quoting = s.is_empty()
+    let needs_quoting_or_escaping = s.is_empty()
         || s.contains(|c: char| {
             matches!(
                 c,
@@ -1588,24 +1590,21 @@ fn quote_for_batch(s: &str) -> String {
             )
         });
 
-    if !needs_quoting {
+    if !needs_quoting_or_escaping {
         return s.to_string();
     }
 
-    // In batch files, double quotes are used for quoting
-    // Internal double quotes are escaped by doubling them
-    let mut quoted = String::with_capacity(s.len() + 2);
-    quoted.push('"');
+    let mut out = String::with_capacity(s.len() + 8);
+    out.push('"');
     for c in s.chars() {
-        if c == '"' {
-            // Escape double quotes by doubling them
-            quoted.push_str("\"\"");
-        } else {
-            quoted.push(c);
+        match c {
+            '"' => out.push_str("\"\""),
+            '%' => out.push_str("%%"),
+            _ => out.push(c),
         }
     }
-    quoted.push('"');
-    quoted
+    out.push('"');
+    out
 }
 
 /// Join arguments for Windows batch file using double quotes
@@ -1675,6 +1674,9 @@ fn write_linker_wrapper(path: &Path, command: &str, args: &str) -> Result<()> {
     } else {
         current_exe.display().to_string()
     };
+    writeln!(&mut buf, "@echo off")?;
+    // Prevent `!VAR!` expansion surprises (delayed expansion) in user-controlled args.
+    writeln!(&mut buf, "setlocal DisableDelayedExpansion")?;
     writeln!(
         &mut buf,
         "\"{}\" zig {} -- {} %*",
