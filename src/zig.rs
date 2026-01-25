@@ -269,6 +269,12 @@ impl Zig {
         } else if arg.starts_with("--target=") {
             // We have already passed target via `-target`
             return vec![];
+        } else if arg.starts_with("-e") && arg.len() > 2 && !arg.starts_with("-export") {
+            // GCC accepts -e<entry> (no space) but zig/clang requires -e <entry> (with space)
+            // Transform to -Wl,--entry=<entry> to pass directly to the linker
+            // See https://github.com/rust-cross/cargo-zigbuild/issues/378
+            let entry = &arg[2..];
+            return vec![format!("-Wl,--entry={}", entry)];
         }
         if (target_info.is_arm || target_info.is_windows_gnu)
             && arg.ends_with(".rlib")
