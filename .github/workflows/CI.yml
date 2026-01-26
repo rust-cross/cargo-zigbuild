@@ -52,6 +52,7 @@ jobs:
           version: ${{ matrix.zig }}
           use-cache: false
       - name: Install LLVM and Clang
+        if: ${{ !startsWith(matrix.os, 'macos') }}
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "20"
