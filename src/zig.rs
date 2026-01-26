@@ -68,39 +68,171 @@ pub enum Zig {
 
 struct TargetInfo {
     target: Option<String>,
-    is_musl: bool,
-    is_windows_gnu: bool,
-    is_windows_msvc: bool,
-    is_arm: bool,
-    is_i386: bool,
-    is_riscv64: bool,
-    is_mips32: bool,
-    is_macos: bool,
-    is_ohos: bool,
-    is_freebsd: bool,
 }
 
 impl TargetInfo {
     fn new(target: Option<&String>) -> Self {
         Self {
             target: target.cloned(),
-            is_musl: target.map(|x| x.contains("musl")).unwrap_or_default(),
-            is_windows_gnu: target
-                .map(|x| x.contains("windows-gnu"))
-                .unwrap_or_default(),
-            is_windows_msvc: target
-                .map(|x| x.contains("windows-msvc"))
-                .unwrap_or_default(),
-            is_arm: target.map(|x| x.starts_with("arm")).unwrap_or_default(),
-            is_i386: target.map(|x| x.starts_with("i386")).unwrap_or_default(),
-            is_riscv64: target.map(|x| x.starts_with("riscv64")).unwrap_or_default(),
-            is_mips32: target
-                .map(|x| x.starts_with("mips") && !x.starts_with("mips64"))
-                .unwrap_or_default(),
-            is_macos: target.map(|x| x.contains("macos")).unwrap_or_default(),
-            is_ohos: target.map(|x| x.contains("ohos")).unwrap_or_default(),
-            is_freebsd: target.map(|x| x.contains("freebsd")).unwrap_or_default(),
         }
+    }
+
+    // Architecture helpers
+    fn is_arm(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("arm"))
+            .unwrap_or_default()
+    }
+
+    fn is_aarch64(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("aarch64"))
+            .unwrap_or_default()
+    }
+
+    fn is_aarch64_be(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("aarch64_be"))
+            .unwrap_or_default()
+    }
+
+    fn is_i386(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("i386"))
+            .unwrap_or_default()
+    }
+
+    fn is_riscv64(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("riscv64"))
+            .unwrap_or_default()
+    }
+
+    fn is_riscv32(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("riscv32"))
+            .unwrap_or_default()
+    }
+
+    fn is_mips32(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("mips") && !x.starts_with("mips64"))
+            .unwrap_or_default()
+    }
+
+    // libc helpers
+    fn is_musl(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("musl"))
+            .unwrap_or_default()
+    }
+
+    // Platform helpers
+    fn is_macos(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("macos"))
+            .unwrap_or_default()
+    }
+
+    fn is_darwin(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("darwin"))
+            .unwrap_or_default()
+    }
+
+    fn is_apple_platform(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| {
+                x.contains("macos")
+                    || x.contains("darwin")
+                    || x.contains("ios")
+                    || x.contains("tvos")
+                    || x.contains("watchos")
+                    || x.contains("visionos")
+            })
+            .unwrap_or_default()
+    }
+
+    fn is_ios(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("ios") && !x.contains("visionos"))
+            .unwrap_or_default()
+    }
+
+    fn is_tvos(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("tvos"))
+            .unwrap_or_default()
+    }
+
+    fn is_watchos(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("watchos"))
+            .unwrap_or_default()
+    }
+
+    fn is_visionos(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("visionos"))
+            .unwrap_or_default()
+    }
+
+    /// Returns the appropriate Apple CPU for the platform
+    fn apple_cpu(&self) -> &'static str {
+        if self.is_macos() || self.is_darwin() {
+            "apple_m1" // M-series for macOS
+        } else if self.is_visionos() {
+            "apple_m2" // M2 for Apple Vision Pro
+        } else if self.is_watchos() {
+            "apple_s5" // S-series for Apple Watch
+        } else if self.is_ios() || self.is_tvos() {
+            "apple_a14" // A-series for iOS/tvOS (iPhone 12 era - good baseline)
+        } else {
+            "generic"
+        }
+    }
+
+    fn is_freebsd(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("freebsd"))
+            .unwrap_or_default()
+    }
+
+    fn is_windows_gnu(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("windows-gnu"))
+            .unwrap_or_default()
+    }
+
+    fn is_windows_msvc(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("windows-msvc"))
+            .unwrap_or_default()
+    }
+
+    fn is_ohos(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.contains("ohos"))
+            .unwrap_or_default()
     }
 }
 
@@ -160,7 +292,7 @@ impl Zig {
             }
         }
 
-        if target_info.is_mips32 {
+        if target_info.is_mips32() {
             // See https://github.com/ziglang/zig/issues/4925#issuecomment-1499823425
             new_cmd_args.push("-Wl,-z,notext".to_string());
         }
@@ -168,7 +300,7 @@ impl Zig {
         if self.has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
-        if target_info.is_macos {
+        if target_info.is_macos() {
             if self.should_add_libcharset(cmd_args, &zig_version) {
                 new_cmd_args.push("-lcharset".to_string());
             }
@@ -207,7 +339,7 @@ impl Zig {
         // See https://github.com/rust-lang/rust/issues/41190
         // and https://github.com/rust-lang/rust/blob/87937d3b6c302dfedfa5c4b94d0a30985d46298d/compiler/rustc_codegen_ssa/src/back/link.rs#L1373-L1382
         let content_bytes = fs::read(arg.trim_start_matches('@'))?;
-        let content = if target_info.is_windows_msvc {
+        let content = if target_info.is_windows_msvc() {
             if content_bytes[0..2] != [255, 254] {
                 bail!(
                     "linker response file `{}` didn't start with a utf16 BOM",
@@ -239,10 +371,10 @@ impl Zig {
         if self.has_undefined_dynamic_lookup(&link_args) {
             link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
-        if target_info.is_macos && self.should_add_libcharset(&link_args, &zig_version) {
+        if target_info.is_macos() && self.should_add_libcharset(&link_args, &zig_version) {
             link_args.push("-lcharset".to_string());
         }
-        if target_info.is_windows_msvc {
+        if target_info.is_windows_msvc() {
             let new_content = link_args.join("\n");
             let mut out = Vec::with_capacity((1 + new_content.len()) * 2);
             // start the stream with a UTF-16 BOM
@@ -278,14 +410,14 @@ impl Zig {
             let entry = &arg[2..];
             return vec![format!("-Wl,--entry={}", entry)];
         }
-        if (target_info.is_arm || target_info.is_windows_gnu)
+        if (target_info.is_arm() || target_info.is_windows_gnu())
             && arg.ends_with(".rlib")
             && arg.contains("libcompiler_builtins-")
         {
             // compiler-builtins is duplicated with zig's compiler-rt
             return vec![];
         }
-        if target_info.is_windows_gnu {
+        if target_info.is_windows_gnu() {
             #[allow(clippy::if_same_then_else)]
             if arg == "-lgcc_eh" {
                 // zig doesn't provide gcc_eh alternative
@@ -327,7 +459,7 @@ impl Zig {
             // Since zig cc is already LLVM-based, ignoring this is fine
             return vec![];
         }
-        if target_info.is_musl || target_info.is_ohos {
+        if target_info.is_musl() || target_info.is_ohos() {
             // Avoids duplicated symbols with both zig musl libc and the libc crate
             if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
                 return vec![];
@@ -350,19 +482,16 @@ impl Zig {
         }
         if arg.starts_with("-march=") {
             // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
-            if target_info.is_arm || target_info.is_i386 {
+            if target_info.is_arm() || target_info.is_i386() {
                 return vec![];
-            } else if target_info.is_riscv64 {
+            } else if target_info.is_riscv64() {
                 return vec!["-march=generic_rv64".to_string()];
+            } else if target_info.is_riscv32() {
+                return vec!["-march=generic_rv32".to_string()];
             } else if arg.starts_with("-march=armv") {
                 // zig doesn't support GCC-style -march=armvX.Y-a+feature syntax
                 // Convert to -mcpu with features preserved
-                if target_info
-                    .target
-                    .as_ref()
-                    .map(|x| x.starts_with("aarch64"))
-                    .unwrap_or_default()
-                {
+                if target_info.is_aarch64() || target_info.is_aarch64_be() {
                     // Extract features after the base arch (e.g., +sha3+crypto from armv8.4-a+sha3+crypto)
                     let march_value = arg.strip_prefix("-march=").unwrap();
                     // Find the first '+' which marks the start of features
@@ -371,13 +500,8 @@ impl Zig {
                     } else {
                         ""
                     };
-                    let base_cpu = if target_info
-                        .target
-                        .as_ref()
-                        .map(|x| x.contains("macos") || x.contains("darwin"))
-                        .unwrap_or_default()
-                    {
-                        "apple_m1"
+                    let base_cpu = if target_info.is_apple_platform() {
+                        target_info.apple_cpu()
                     } else {
                         "generic"
                     };
@@ -394,7 +518,7 @@ impl Zig {
                 }
             }
         }
-        if target_info.is_macos {
+        if target_info.is_macos() {
             if arg.starts_with("-Wl,-exported_symbols_list,") {
                 // zig doesn't support -exported_symbols_list arg
                 // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
@@ -405,7 +529,7 @@ impl Zig {
                 return vec![];
             }
         }
-        if target_info.is_freebsd {
+        if target_info.is_freebsd() {
             let ignored_libs = ["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"];
             if ignored_libs.contains(&arg) {
                 return vec![];
@@ -749,9 +873,9 @@ impl Zig {
                         value.push(' ');
                     }
                     value.push_str(&escaped_options);
-                    env::set_var(name, value);
+                    unsafe { env::set_var(name, value) };
                 } else {
-                    env::set_var(name, escaped_options.clone());
+                    unsafe { env::set_var(name, escaped_options.clone()) };
                 }
             }
         }
