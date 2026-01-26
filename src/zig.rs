@@ -354,38 +354,44 @@ impl Zig {
                 return vec![];
             } else if target_info.is_riscv64 {
                 return vec!["-march=generic_rv64".to_string()];
-            } else if arg.starts_with("-march=armv8-a") {
-                let mut args_march = if target_info
+            } else if arg.starts_with("-march=armv") {
+                // zig doesn't support GCC-style -march=armvX.Y-a+feature syntax
+                // Convert to -mcpu with features preserved
+                if target_info
                     .target
                     .as_ref()
-                    .map(|x| x.starts_with("aarch64-macos"))
+                    .map(|x| x.starts_with("aarch64"))
                     .unwrap_or_default()
                 {
-                    vec![arg.replace("armv8-a", "apple_m1")]
-                } else if target_info
-                    .target
-                    .as_ref()
-                    .map(|x| x.starts_with("aarch64-linux"))
-                    .unwrap_or_default()
-                {
-                    vec![arg
-                        .replace("armv8-a", "generic+v8a")
-                        .replace("simd", "neon")]
-                } else {
-                    vec![arg.to_string()]
-                };
-                if arg == "-march=armv8-a+crypto" {
-                    // Workaround for building sha1-asm on aarch64
-                    // See:
-                    // https://github.com/rust-cross/cargo-zigbuild/issues/149
-                    // https://github.com/RustCrypto/asm-hashes/blob/master/sha1/build.rs#L17-L19
-                    // https://github.com/ziglang/zig/issues/10411
-                    args_march.append(&mut vec![
-                        "-Xassembler".to_owned(),
-                        "-march=armv8-a+crypto".to_owned(),
-                    ]);
+                    // Extract features after the base arch (e.g., +sha3+crypto from armv8.4-a+sha3+crypto)
+                    let march_value = arg.strip_prefix("-march=").unwrap();
+                    // Find the first '+' which marks the start of features
+                    let features = if let Some(pos) = march_value.find('+') {
+                        &march_value[pos..]
+                    } else {
+                        ""
+                    };
+                    let base_cpu = if target_info
+                        .target
+                        .as_ref()
+                        .map(|x| x.contains("macos") || x.contains("darwin"))
+                        .unwrap_or_default()
+                    {
+                        "apple_m1"
+                    } else {
+                        "generic"
+                    };
+                    let mut result = vec![format!("-mcpu={}{}", base_cpu, features)];
+                    if features.contains("+crypto") {
+                        // Workaround for building sha1-asm on aarch64
+                        // See:
+                        // https://github.com/rust-cross/cargo-zigbuild/issues/149
+                        // https://github.com/RustCrypto/asm-hashes/blob/master/sha1/build.rs#L17-L19
+                        // https://github.com/ziglang/zig/issues/10411
+                        result.append(&mut vec!["-Xassembler".to_owned(), arg.to_string()]);
+                    }
+                    return result;
                 }
-                return args_march;
             }
         }
         if target_info.is_macos {
@@ -443,25 +449,41 @@ impl Zig {
             }
         }
         if let Some(ref sdkroot) = sdkroot {
-            let include_prefix = if (zig_version.major, zig_version.minor) < (0, 15) {
-                sdkroot
+            if (zig_version.major, zig_version.minor) < (0, 15) {
+                // For zig < 0.15, we need to explicitly add SDK paths with --sysroot
+                new_cmd_args.extend_from_slice(&[
+                    "-isystem".to_string(),
+                    format!("{}", sdkroot.join("usr").join("include").display()),
+                    format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                    format!(
+                        "-F{}",
+                        sdkroot
+                            .join("System")
+                            .join("Library")
+                            .join("Frameworks")
+                            .display()
+                    ),
+                    "-DTARGET_OS_IPHONE=0".to_string(),
+                ]);
             } else {
-                Path::new("/")
-            };
-            new_cmd_args.extend_from_slice(&[
-                "-isystem".to_string(),
-                format!("{}", include_prefix.join("usr").join("include").display()),
-                format!("-L{}", include_prefix.join("usr").join("lib").display()),
-                format!(
-                    "-F{}",
-                    include_prefix
-                        .join("System")
-                        .join("Library")
-                        .join("Frameworks")
-                        .display()
-                ),
-                "-DTARGET_OS_IPHONE=0".to_string(),
-            ]);
+                // For zig >= 0.15 with SDKROOT, we still need to add framework paths
+                // Use -iframework for framework header search
+                new_cmd_args.extend_from_slice(&[
+                    "-isystem".to_string(),
+                    format!("{}", sdkroot.join("usr").join("include").display()),
+                    format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                    "-iframework".to_string(),
+                    format!(
+                        "{}",
+                        sdkroot
+                            .join("System")
+                            .join("Library")
+                            .join("Frameworks")
+                            .display()
+                    ),
+                    "-DTARGET_OS_IPHONE=0".to_string(),
+                ]);
+            }
         }
 
         // Add the deps directory that contains `.tbd` files to the library search path
@@ -1655,9 +1677,7 @@ fn write_linker_wrapper(
         zig_version
     )?;
 
-    // For Zig >= 0.14 with macOS, pass through SDKROOT environment variable
-    // if it exists at runtime (instead of passing --sysroot)
-    // This avoids issues with library paths being interpreted relative to sysroot
+    // Pass through SDKROOT if it exists at runtime
     writeln!(&mut buf, "if [ -n \"$SDKROOT\" ]; then export SDKROOT; fi")?;
 
     writeln!(
