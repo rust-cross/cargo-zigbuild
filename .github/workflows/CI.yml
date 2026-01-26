@@ -51,7 +51,10 @@ jobs:
         with:
           version: ${{ matrix.zig }}
           use-cache: false
-      - run: zig version
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "20"
       - run: cargo build
       - name: Install Rust targets
         shell: bash
