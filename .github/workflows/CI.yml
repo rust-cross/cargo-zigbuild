@@ -50,6 +50,7 @@ jobs:
         id: rustup
         with:
           toolchain: ${{ matrix.toolchain }}
+          components: rustfmt
       - name: Install zig
         uses: mlugg/setup-zig@v2
         with:
