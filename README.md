@@ -165,6 +165,9 @@ cargo zigbuild --target universal2-apple-darwin
    other target platforms can be added if you can make it work,
    pull requests are welcome.
 2. Only current Rust **stable** and **nightly** versions are regularly tested on CI, other versions may not work.
+3. When using zig 0.15+ with crates that use [bindgen](https://github.com/rust-lang/rust-bindgen),
+   you may need clang 18+ installed for bindgen to work correctly. This is because zig 0.15+
+   bundles libc++ 19 headers which require a compatible libclang version.
 
 Known upstream zig [issues](https://github.com/ziglang/zig/labels/zig%20cc):
 
