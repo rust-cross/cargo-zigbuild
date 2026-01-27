@@ -42,16 +42,25 @@ jobs:
       RUST_BACKTRACE: "1"
     steps:
       - uses: actions/checkout@v6
+      - uses: jlumbroso/free-disk-space@main
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          docker-images: false
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
           toolchain: ${{ matrix.toolchain }}
+          components: rustfmt
       - name: Install zig
         uses: mlugg/setup-zig@v2
         with:
           version: ${{ matrix.zig }}
           use-cache: false
-      - run: zig version
+      - name: Install LLVM and Clang
+        if: ${{ !startsWith(matrix.os, 'macos') }}
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "20"
       - run: cargo build
       - name: Install Rust targets
         shell: bash
