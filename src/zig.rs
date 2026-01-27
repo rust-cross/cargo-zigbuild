@@ -1082,6 +1082,12 @@ impl Zig {
                 "-D_LIBCPP_ABI_VERSION=1",
                 "-D_LIBCPP_ABI_NAMESPACE=__1",
                 "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST",
+                // Required by zig 0.15+ libc++ for streambuf and other I/O headers
+                "-D_LIBCPP_HAS_LOCALIZATION=1",
+                "-D_LIBCPP_HAS_WIDE_CHARACTERS=1",
+                "-D_LIBCPP_HAS_UNICODE=1",
+                "-D_LIBCPP_HAS_THREADS=1",
+                "-D_LIBCPP_HAS_MONOTONIC_CLOCK",
             ]
             .into_iter()
             .map(ToString::to_string),

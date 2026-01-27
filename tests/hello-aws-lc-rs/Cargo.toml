@@ -1,0 +1,7 @@
+[package]
+name = "hello-aws-lc-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aws-lc-rs = "1.15.4"
