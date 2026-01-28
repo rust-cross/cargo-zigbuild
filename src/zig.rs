@@ -106,6 +106,13 @@ impl TargetInfo {
             .unwrap_or_default()
     }
 
+    fn is_i686(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("i686") || x.starts_with("x86-"))
+            .unwrap_or_default()
+    }
+
     fn is_riscv64(&self) -> bool {
         self.target
             .as_ref()
@@ -403,12 +410,12 @@ impl Zig {
         };
         let mut link_args: Vec<_> = content
             .split('\n')
-            .flat_map(|arg| self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info))
+            .flat_map(|arg| self.filter_linker_arg(arg, rustc_ver, zig_version, target_info))
             .collect();
         if self.has_undefined_dynamic_lookup(&link_args) {
             link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
-        if target_info.is_macos() && self.should_add_libcharset(&link_args, &zig_version) {
+        if target_info.is_macos() && self.should_add_libcharset(&link_args, zig_version) {
             link_args.push("-lcharset".to_string());
         }
         if target_info.is_windows_msvc() {
@@ -456,10 +463,23 @@ impl Zig {
         }
         if target_info.is_windows_gnu() {
             #[allow(clippy::if_same_then_else)]
-            if arg == "-lgcc_eh" && (zig_version.major, zig_version.minor) < (0, 14) {
+            if arg == "-lgcc_eh"
+                && ((zig_version.major, zig_version.minor) < (0, 14) || target_info.is_i686())
+            {
                 // zig<0.14 doesn't provide gcc_eh alternative
+                // For i686-pc-windows-gnu, zig's libgcc_eh doesn't provide __register_frame_info
+                // and __deregister_frame_info symbols required by Rust's rsbegin.o
                 // We use libc++ to replace it on windows gnu targets
                 return vec!["-lc++".to_string()];
+            } else if arg.ends_with("rsbegin.o") || arg.ends_with("rsend.o") {
+                // i686-pc-windows-gnu rsbegin.o/rsend.o require __register_frame_info and
+                // __deregister_frame_info symbols which are GCC-specific. Zig uses LLVM's
+                // libunwind which provides __register_frame (without _info) instead.
+                // Filtering these out allows compilation but breaks panic unwinding.
+                // Users requiring panic unwinding should use a real MinGW toolchain.
+                if target_info.is_i686() {
+                    return vec![];
+                }
             } else if arg == "-Wl,-Bdynamic" && (zig_version.major, zig_version.minor) >= (0, 11) {
                 // https://github.com/ziglang/zig/pull/16058
                 // zig changes the linker behavior, -Bdynamic won't search *.a for mingw, but this may be fixed in the later version
@@ -1062,8 +1082,7 @@ impl Zig {
             .position(|p| {
                 p == c_paths
                     .iter()
-                    .filter(|(kind, _)| *kind == Kind::Normal)
-                    .next()
+                    .find(|(kind, _)| *kind == Kind::Normal)
                     .unwrap()
             })
             .unwrap_or_default();
@@ -1596,7 +1615,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
                 cc_args.push(format!("{arch}-macos-gnu{abi_suffix}"));
             }
         }
-        OperatingSystem::Windows { .. } => {
+        OperatingSystem::Windows => {
             let zig_arch = match arch.as_str() {
                 "i686" => {
                     let zig_version = Zig::zig_version()?;
