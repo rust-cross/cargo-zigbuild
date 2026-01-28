@@ -456,8 +456,8 @@ impl Zig {
         }
         if target_info.is_windows_gnu() {
             #[allow(clippy::if_same_then_else)]
-            if arg == "-lgcc_eh" {
-                // zig doesn't provide gcc_eh alternative
+            if arg == "-lgcc_eh" && (zig_version.major, zig_version.minor) < (0, 14) {
+                // zig<0.14 doesn't provide gcc_eh alternative
                 // We use libc++ to replace it on windows gnu targets
                 return vec!["-lc++".to_string()];
             } else if arg == "-Wl,-Bdynamic" && (zig_version.major, zig_version.minor) >= (0, 11) {
