@@ -207,8 +207,7 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
       - name: Windows - Test gnu build
-        # We are having trouble building with zig 0.13+
-        if: ${{ matrix.zig == '0.11.0' }}
+        if: ${{ matrix.zig != 'master' }}
         run: |
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
@@ -219,7 +218,7 @@ jobs:
         run: |
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml --features curl
       - name: Windows - Test run
-        if: ${{ matrix.os == 'windows-latest' && matrix.zig == '0.11.0' }}
+        if: ${{ matrix.os == 'windows-latest' }}
         run: |
           ./target/x86_64-pc-windows-gnu/debug/cargo-zigbuild.exe zigbuild --help
           ./tests/hello-windows/target/x86_64-pc-windows-gnu/debug/hello-windows.exe
