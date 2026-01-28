@@ -859,12 +859,18 @@ impl Zig {
             if raw_target.contains("windows-gnu") {
                 cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
                 // Add the cache directory to PATH so rustc can find architecture-specific dlltool
-                // (e.g., x86_64-w64-mingw32-dlltool)
-                let cache_dir = cache_dir();
-                let existing_path = env::var_os("PATH").unwrap_or_default();
-                let paths = std::iter::once(cache_dir).chain(env::split_paths(&existing_path));
-                if let Ok(new_path) = env::join_paths(paths) {
-                    cmd.env("PATH", new_path);
+                // (e.g., x86_64-w64-mingw32-dlltool), but only if no system dlltool exists
+                // If system mingw-w64 dlltool exists, prefer it over zig's dlltool
+                let triple: Triple = parsed_target
+                    .parse()
+                    .unwrap_or_else(|_| Triple::unknown());
+                if !has_system_dlltool(&triple.architecture) {
+                    let cache_dir = cache_dir();
+                    let existing_path = env::var_os("PATH").unwrap_or_default();
+                    let paths = std::iter::once(cache_dir).chain(env::split_paths(&existing_path));
+                    if let Ok(new_path) = env::join_paths(paths) {
+                        cmd.env("PATH", new_path);
+                    }
                 }
             }
 
@@ -1705,7 +1711,7 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
     symlink_wrapper(&zig_lib)?;
 
-    // Create dlltool symlinks for Windows GNU targets
+    // Create dlltool symlinks for Windows GNU targets, but only if no system dlltool exists
     // On Windows hosts, rustc looks for "dlltool.exe"
     // On non-Windows hosts, rustc looks for architecture-specific names
     //
@@ -1713,18 +1719,13 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     if matches!(triple.operating_system, OperatingSystem::Windows)
         && matches!(triple.environment, Environment::Gnu)
     {
-        let dlltool_name: &str = if cfg!(windows) {
-            "dlltool"
-        } else {
-            match triple.architecture {
-                Architecture::X86_64 => "x86_64-w64-mingw32-dlltool",
-                Architecture::X86_32(_) => "i686-w64-mingw32-dlltool",
-                Architecture::Aarch64(_) => "aarch64-w64-mingw32-dlltool",
-                _ => "dlltool",
-            }
-        };
-        let zig_dlltool = zig_linker_dir.join(format!("{dlltool_name}{exe_ext}"));
-        symlink_wrapper(&zig_dlltool)?;
+        // Only create zig dlltool wrapper if no system dlltool is found
+        // System dlltool (from mingw-w64) handles raw-dylib better than zig's dlltool
+        if !has_system_dlltool(&triple.architecture) {
+            let dlltool_name = get_dlltool_name(&triple.architecture);
+            let zig_dlltool = zig_linker_dir.join(format!("{dlltool_name}{exe_ext}"));
+            symlink_wrapper(&zig_dlltool)?;
+        }
     }
 
     Ok(ZigWrapper {
@@ -1933,6 +1934,28 @@ fn python_path() -> Result<PathBuf> {
 fn zig_path() -> Result<PathBuf> {
     let zig = env::var("CARGO_ZIGBUILD_ZIG_PATH").unwrap_or_else(|_| "zig".to_string());
     Ok(which::which(zig)?)
+}
+
+/// Get the dlltool executable name for the given architecture
+/// On Windows, rustc looks for "dlltool.exe"
+/// On non-Windows hosts, rustc looks for architecture-specific names
+fn get_dlltool_name(arch: &Architecture) -> &'static str {
+    if cfg!(windows) {
+        "dlltool"
+    } else {
+        match arch {
+            Architecture::X86_64 => "x86_64-w64-mingw32-dlltool",
+            Architecture::X86_32(_) => "i686-w64-mingw32-dlltool",
+            Architecture::Aarch64(_) => "aarch64-w64-mingw32-dlltool",
+            _ => "dlltool",
+        }
+    }
+}
+
+/// Check if a dlltool for the given architecture exists in PATH
+/// Returns true if found, false otherwise
+fn has_system_dlltool(arch: &Architecture) -> bool {
+    which::which(get_dlltool_name(arch)).is_ok()
 }
 
 #[cfg(test)]
