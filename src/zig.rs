@@ -245,8 +245,45 @@ impl Zig {
             Zig::Ar { args } => self.execute_tool("ar", args),
             Zig::Ranlib { args } => self.execute_compiler("ranlib", args),
             Zig::Lib { args } => self.execute_compiler("lib", args),
-            Zig::Dlltool { args } => self.execute_tool("dlltool", args),
+            Zig::Dlltool { args } => self.execute_dlltool(args),
         }
+    }
+
+    /// Execute zig dlltool command
+    /// Filter out unsupported options for older zig versions (< 0.12)
+    pub fn execute_dlltool(&self, cmd_args: &[String]) -> Result<()> {
+        let zig_version = Zig::zig_version()?;
+        let needs_filtering = zig_version.major == 0 && zig_version.minor < 12;
+
+        if !needs_filtering {
+            return self.execute_tool("dlltool", cmd_args);
+        }
+
+        // Filter out --no-leading-underscore, --temp-prefix, and -t (short form)
+        // These options are not supported by zig dlltool in versions < 0.12
+        let mut filtered_args = Vec::with_capacity(cmd_args.len());
+        let mut skip_next = false;
+        for arg in cmd_args {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
+            if arg == "--no-leading-underscore" {
+                continue;
+            }
+            if arg == "--temp-prefix" || arg == "-t" {
+                // Skip this arg and the next one (the value)
+                skip_next = true;
+                continue;
+            }
+            // Handle --temp-prefix=value and -t=value forms
+            if arg.starts_with("--temp-prefix=") || arg.starts_with("-t=") {
+                continue;
+            }
+            filtered_args.push(arg.clone());
+        }
+
+        self.execute_tool("dlltool", &filtered_args)
     }
 
     /// Execute zig cc/c++ command
