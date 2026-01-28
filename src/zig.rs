@@ -762,11 +762,42 @@ impl Zig {
             return Ok(cached.clone());
         }
         let (zig, zig_args) = Self::find_zig()?;
+        let zig_version = Self::zig_version()?;
         let output = Command::new(zig).args(zig_args).arg("env").output()?;
-        let zig_env: ZigEnv = serde_json::from_slice(&output.stdout)?;
-        Ok(LIB_DIR
-            .get_or_init(|| PathBuf::from(zig_env.lib_dir))
-            .clone())
+        let parse_zon_lib_dir = || -> Result<PathBuf> {
+            let output_str =
+                str::from_utf8(&output.stdout).context("`zig env` didn't return utf8 output")?;
+            let lib_dir = output_str
+                .find(".lib_dir")
+                .and_then(|idx| {
+                    let bytes = output_str.as_bytes();
+                    let mut start = idx;
+                    while start < bytes.len() && bytes[start] != b'"' {
+                        start += 1;
+                    }
+                    if start >= bytes.len() {
+                        return None;
+                    }
+                    let mut end = start + 1;
+                    while end < bytes.len() && bytes[end] != b'"' {
+                        end += 1;
+                    }
+                    if end >= bytes.len() {
+                        return None;
+                    }
+                    Some(&output_str[start + 1..end])
+                })
+                .context("Failed to parse lib_dir from `zig env` ZON output")?;
+            Ok(PathBuf::from(lib_dir))
+        };
+        let lib_dir = if zig_version >= semver::Version::new(0, 15, 0) {
+            parse_zon_lib_dir()?
+        } else {
+            serde_json::from_slice::<ZigEnv>(&output.stdout)
+                .map(|zig_env| PathBuf::from(zig_env.lib_dir))
+                .or_else(|_| parse_zon_lib_dir())?
+        };
+        Ok(LIB_DIR.get_or_init(|| lib_dir).clone())
     }
 
     fn add_env_if_missing<K, V>(command: &mut Command, name: K, value: V)

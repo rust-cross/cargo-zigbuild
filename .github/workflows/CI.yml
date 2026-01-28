@@ -216,10 +216,7 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-musl
           cargo run zigbuild --target aarch64-unknown-linux-musl --manifest-path tests/hello-rustls/Cargo.toml
       - name: Windows - Test gnu build
-        # zig 0.13+ has -search_paths_first linker issues that break Windows GNU builds
-        # See: https://github.com/ziglang/zig/issues/16811
-        # Only run for zig 0.11.0 where the workarounds work correctly
-        if: ${{ matrix.zig == '0.11.0' }}
+        if: ${{ matrix.zig != 'master' }}
         run: |
           cargo run zigbuild --target x86_64-pc-windows-gnu
           cargo run zigbuild --target x86_64-pc-windows-gnu --manifest-path tests/hello-windows/Cargo.toml
@@ -230,7 +227,7 @@ jobs:
         run: |
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml --features curl
       - name: Windows - Test run
-        if: ${{ matrix.os == 'windows-latest' && matrix.zig == '0.11.0' }}
+        if: ${{ matrix.os == 'windows-latest' && matrix.zig != 'master' }}
         run: |
           ./target/x86_64-pc-windows-gnu/debug/cargo-zigbuild.exe zigbuild --help
           ./tests/hello-windows/target/x86_64-pc-windows-gnu/debug/hello-windows.exe
