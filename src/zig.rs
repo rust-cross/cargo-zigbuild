@@ -861,9 +861,7 @@ impl Zig {
                 // Add the cache directory to PATH so rustc can find architecture-specific dlltool
                 // (e.g., x86_64-w64-mingw32-dlltool), but only if no system dlltool exists
                 // If system mingw-w64 dlltool exists, prefer it over zig's dlltool
-                let triple: Triple = parsed_target
-                    .parse()
-                    .unwrap_or_else(|_| Triple::unknown());
+                let triple: Triple = parsed_target.parse().unwrap_or_else(|_| Triple::unknown());
                 if !has_system_dlltool(&triple.architecture) {
                     let cache_dir = cache_dir();
                     let existing_path = env::var_os("PATH").unwrap_or_default();
