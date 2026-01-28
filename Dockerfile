@@ -41,7 +41,6 @@ RUN \
 RUN apt-get update && apt-get install -y libclang-dev clang && rm -rf /var/lib/apt/lists/*
 
 # Install macOS SDKs
-RUN curl -L "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.9.sdk.tar.xz" | tar -J -x -C /opt
 RUN curl -L "https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.3.sdk.tar.xz" | tar -J -x -C /opt
 ENV SDKROOT=/opt/MacOSX11.3.sdk
 
