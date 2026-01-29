@@ -37,3 +37,8 @@ which = "8.0.0"
 [features]
 default = ["universal2"]
 universal2 = ["fat-macho"]
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
