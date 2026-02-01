@@ -107,6 +107,6 @@ jobs:
         with:
           pattern: wheels-*
           merge-multiple: true
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - name: Publish to PyPI
         run: uv publish --trusted-publishing always *.whl
