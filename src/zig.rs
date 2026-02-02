@@ -653,6 +653,15 @@ impl Zig {
                     "-isystem".to_string(),
                     format!("{}", sdkroot.join("usr").join("include").display()),
                     format!("-L{}", sdkroot.join("usr").join("lib").display()),
+                    format!(
+                        "-F{}",
+                        sdkroot
+                            .join("System")
+                            .join("Library")
+                            .join("Frameworks")
+                            .display()
+                    ),
+                    // Also add the SYSTEM framework search path
                     "-iframework".to_string(),
                     format!(
                         "{}",
