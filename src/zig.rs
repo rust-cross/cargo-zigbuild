@@ -314,16 +314,6 @@ impl Zig {
                 skip_next_arg = false;
                 continue;
             }
-            // Filter out two-arg form: "-Wl,-exported_symbols_list" "-Wl,<path>"
-            // and "-Wl,--dynamic-list" "-Wl,<path>"
-            // zig < 0.16 doesn't pass these through to lld even though lld supports them
-            // See https://github.com/rust-cross/cargo-zigbuild/issues/355
-            if (zig_version.major, zig_version.minor) < (0, 16)
-                && (arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list")
-            {
-                skip_next_arg = true;
-                continue;
-            }
             let args = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
                 vec![self.process_linker_response_file(
                     arg,
@@ -332,7 +322,14 @@ impl Zig {
                     &target_info,
                 )?]
             } else {
-                self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info)
+                match self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info) {
+                    FilteredArg::Keep(filtered) => filtered,
+                    FilteredArg::Skip => continue,
+                    FilteredArg::SkipWithNext => {
+                        skip_next_arg = true;
+                        continue;
+                    }
+                }
             };
             new_cmd_args.extend(args);
         }
@@ -409,30 +406,12 @@ impl Zig {
                 )
             })?
         };
-        let mut link_args: Vec<_> = content
-            .split('\n')
-            .flat_map(|arg| self.filter_linker_arg(arg, rustc_ver, zig_version, target_info))
-            .collect();
-        // Filter out two-arg form: "-Wl,-exported_symbols_list" "-Wl,<path>"
-        // and "-Wl,--dynamic-list" "-Wl,<path>"
-        // zig < 0.16 doesn't pass these through to lld even though lld supports them
-        // See https://github.com/rust-cross/cargo-zigbuild/issues/355
-        if (zig_version.major, zig_version.minor) < (0, 16) {
-            let mut filtered = Vec::with_capacity(link_args.len());
-            let mut skip_next = false;
-            for arg in link_args {
-                if skip_next {
-                    skip_next = false;
-                    continue;
-                }
-                if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
-                    skip_next = true;
-                    continue;
-                }
-                filtered.push(arg);
-            }
-            link_args = filtered;
-        }
+        let mut link_args: Vec<_> = filter_linker_args(
+            content.split('\n').map(|s| s.to_string()),
+            rustc_ver,
+            zig_version,
+            target_info,
+        );
         if self.has_undefined_dynamic_lookup(&link_args) {
             link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
@@ -461,164 +440,169 @@ impl Zig {
         rustc_ver: &rustc_version::Version,
         zig_version: &semver::Version,
         target_info: &TargetInfo,
-    ) -> Vec<String> {
-        if arg == "-lgcc_s" {
-            // Replace libgcc_s with libunwind
-            return vec!["-lunwind".to_string()];
-        } else if arg.starts_with("--target=") {
-            // We have already passed target via `-target`
-            return vec![];
-        } else if arg.starts_with("-e") && arg.len() > 2 && !arg.starts_with("-export") {
-            // GCC accepts -e<entry> (no space) but zig/clang requires -e <entry> (with space)
-            // Transform to -Wl,--entry=<entry> to pass directly to the linker
-            // See https://github.com/rust-cross/cargo-zigbuild/issues/378
-            let entry = &arg[2..];
-            return vec![format!("-Wl,--entry={}", entry)];
-        }
-        if (target_info.is_arm() || target_info.is_windows_gnu())
-            && arg.ends_with(".rlib")
-            && arg.contains("libcompiler_builtins-")
-        {
-            // compiler-builtins is duplicated with zig's compiler-rt
-            return vec![];
-        }
-        if target_info.is_windows_gnu() {
-            #[allow(clippy::if_same_then_else)]
-            if arg == "-lgcc_eh"
-                && ((zig_version.major, zig_version.minor) < (0, 14) || target_info.is_i686())
-            {
-                // zig<0.14 doesn't provide gcc_eh alternative
-                // For i686-pc-windows-gnu, zig's libgcc_eh doesn't provide __register_frame_info
-                // and __deregister_frame_info symbols required by Rust's rsbegin.o
-                // We use libc++ to replace it on windows gnu targets
-                return vec!["-lc++".to_string()];
-            } else if arg.ends_with("rsbegin.o") || arg.ends_with("rsend.o") {
-                // i686-pc-windows-gnu rsbegin.o/rsend.o require __register_frame_info and
-                // __deregister_frame_info symbols which are GCC-specific. Zig uses LLVM's
-                // libunwind which provides __register_frame (without _info) instead.
-                // Filtering these out allows compilation but breaks panic unwinding.
-                // Users requiring panic unwinding should use a real MinGW toolchain.
-                if target_info.is_i686() {
-                    return vec![];
-                }
-            } else if arg == "-Wl,-Bdynamic" && (zig_version.major, zig_version.minor) >= (0, 11) {
-                // https://github.com/ziglang/zig/pull/16058
-                // zig changes the linker behavior, -Bdynamic won't search *.a for mingw, but this may be fixed in the later version
-                // here is a workaround to replace the linker switch with -search_paths_first, which will search for *.dll,*lib first,
-                // then fallback to *.a
-                return vec!["-Wl,-search_paths_first".to_owned()];
-            } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
-                return vec![];
-            } else if arg == "-Wl,--disable-auto-image-base"
-                || arg == "-Wl,--dynamicbase"
-                || arg == "-Wl,--large-address-aware"
-                || (arg.starts_with("-Wl,")
-                    && (arg.ends_with("/list.def") || arg.ends_with("\\list.def")))
-            {
-                // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/windows_gnu_base.rs#L23
-                // https://github.com/rust-lang/rust/blob/2fb0e8d162a021f8a795fb603f5d8c0017855160/compiler/rustc_target/src/spec/windows_gnu_base.rs#L22
-                // https://github.com/rust-lang/rust/blob/f0bc76ac41a0a832c9ee621e31aaf1f515d3d6a5/compiler/rustc_target/src/spec/i686_pc_windows_gnu.rs#L16
-                // zig doesn't support --disable-auto-image-base, --dynamicbase and --large-address-aware
-                return vec![];
-            } else if arg == "-lmsvcrt" {
-                return vec![];
-            }
-        } else if arg == "-Wl,--no-undefined-version" {
-            // https://github.com/rust-lang/rust/blob/542ed2bf72b232b245ece058fc11aebb1ca507d7/compiler/rustc_codegen_ssa/src/back/linker.rs#L723
-            // zig doesn't support --no-undefined-version
-            return vec![];
-        } else if arg == "-Wl,-znostart-stop-gc" {
-            // https://github.com/rust-lang/rust/blob/c580c498a1fe144d7c5b2dfc7faab1a229aa288b/compiler/rustc_codegen_ssa/src/back/link.rs#L3371
-            // zig doesn't support -znostart-stop-gc
-            return vec![];
-        } else if arg.starts_with("-Wl,-plugin-opt") {
-            // https://github.com/rust-cross/cargo-zigbuild/issues/369
-            // zig doesn't support -plugin-opt (used for cross-lang LTO with LLVM gold plugin)
-            // Since zig cc is already LLVM-based, ignoring this is fine
-            return vec![];
-        }
-        if target_info.is_musl() || target_info.is_ohos() {
-            // Avoids duplicated symbols with both zig musl libc and the libc crate
-            if arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt") {
-                return vec![];
-            } else if arg == "-Wl,-melf_i386" {
-                // unsupported linker arg: -melf_i386
-                return vec![];
-            }
-            if rustc_ver.major == 1
-                && rustc_ver.minor < 59
-                && arg.ends_with(".rlib")
-                && arg.contains("liblibc-")
-            {
-                // Rust distributes standalone libc.a in self-contained for musl since 1.59.0
-                // See https://github.com/rust-lang/rust/pull/90527
-                return vec![];
-            }
-            if arg == "-lc" {
-                return vec![];
-            }
-        }
-        if arg.starts_with("-march=") {
-            // Ignore `-march` option for arm* targets, we use `generic` + cpu features instead
-            if target_info.is_arm() || target_info.is_i386() {
-                return vec![];
-            } else if target_info.is_riscv64() {
-                return vec!["-march=generic_rv64".to_string()];
-            } else if target_info.is_riscv32() {
-                return vec!["-march=generic_rv32".to_string()];
-            } else if arg.starts_with("-march=armv") {
-                // zig doesn't support GCC-style -march=armvX.Y-a+feature syntax
-                // Convert to -mcpu with features preserved
-                if target_info.is_aarch64() || target_info.is_aarch64_be() {
-                    // Extract features after the base arch (e.g., +sha3+crypto from armv8.4-a+sha3+crypto)
-                    let march_value = arg.strip_prefix("-march=").unwrap();
-                    // Find the first '+' which marks the start of features
-                    let features = if let Some(pos) = march_value.find('+') {
-                        &march_value[pos..]
-                    } else {
-                        ""
-                    };
-                    let base_cpu = if target_info.is_apple_platform() {
-                        target_info.apple_cpu()
-                    } else {
-                        "generic"
-                    };
-                    let mut result = vec![format!("-mcpu={}{}", base_cpu, features)];
-                    if features.contains("+crypto") {
-                        // Workaround for building sha1-asm on aarch64
-                        // See:
-                        // https://github.com/rust-cross/cargo-zigbuild/issues/149
-                        // https://github.com/RustCrypto/asm-hashes/blob/master/sha1/build.rs#L17-L19
-                        // https://github.com/ziglang/zig/issues/10411
-                        result.append(&mut vec!["-Xassembler".to_owned(), arg.to_string()]);
-                    }
-                    return result;
-                }
-            }
-        }
-        if target_info.is_apple_platform() {
-            if (zig_version.major, zig_version.minor) < (0, 16)
-                && (arg.starts_with("-Wl,-exported_symbols_list,")
-                    || arg == "-Wl,-exported_symbols_list")
-            {
-                // zig < 0.16 doesn't support -exported_symbols_list arg
-                // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
-                return vec![];
-            }
-            if arg == "-Wl,-dylib" {
-                // zig doesn't support -dylib
-                return vec![];
-            }
-        }
-        if target_info.is_freebsd() {
-            let ignored_libs = ["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"];
-            if ignored_libs.contains(&arg) {
-                return vec![];
-            }
-        }
-        vec![arg.to_string()]
+    ) -> FilteredArg {
+        filter_linker_arg(arg, rustc_ver, zig_version, target_info)
     }
+}
 
+enum FilteredArg {
+    Keep(Vec<String>),
+    Skip,
+    SkipWithNext,
+}
+
+fn filter_linker_args(
+    args: impl IntoIterator<Item = String>,
+    rustc_ver: &rustc_version::Version,
+    zig_version: &semver::Version,
+    target_info: &TargetInfo,
+) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut skip_next = false;
+    for arg in args {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        match filter_linker_arg(&arg, rustc_ver, zig_version, target_info) {
+            FilteredArg::Keep(filtered) => result.extend(filtered),
+            FilteredArg::Skip => {}
+            FilteredArg::SkipWithNext => {
+                skip_next = true;
+            }
+        }
+    }
+    result
+}
+
+fn filter_linker_arg(
+    arg: &str,
+    rustc_ver: &rustc_version::Version,
+    zig_version: &semver::Version,
+    target_info: &TargetInfo,
+) -> FilteredArg {
+    if arg == "-lgcc_s" {
+        return FilteredArg::Keep(vec!["-lunwind".to_string()]);
+    } else if arg.starts_with("--target=") {
+        return FilteredArg::Skip;
+    } else if arg.starts_with("-e") && arg.len() > 2 && !arg.starts_with("-export") {
+        let entry = &arg[2..];
+        return FilteredArg::Keep(vec![format!("-Wl,--entry={}", entry)]);
+    }
+    if (target_info.is_arm() || target_info.is_windows_gnu())
+        && arg.ends_with(".rlib")
+        && arg.contains("libcompiler_builtins-")
+    {
+        return FilteredArg::Skip;
+    }
+    if target_info.is_windows_gnu() {
+        #[allow(clippy::if_same_then_else)]
+        if arg == "-lgcc_eh"
+            && ((zig_version.major, zig_version.minor) < (0, 14) || target_info.is_i686())
+        {
+            return FilteredArg::Keep(vec!["-lc++".to_string()]);
+        } else if arg.ends_with("rsbegin.o") || arg.ends_with("rsend.o") {
+            if target_info.is_i686() {
+                return FilteredArg::Skip;
+            }
+        } else if arg == "-Wl,-Bdynamic" && (zig_version.major, zig_version.minor) >= (0, 11) {
+            return FilteredArg::Keep(vec!["-Wl,-search_paths_first".to_owned()]);
+        } else if arg == "-lwindows" || arg == "-l:libpthread.a" || arg == "-lgcc" {
+            return FilteredArg::Skip;
+        } else if arg == "-Wl,--disable-auto-image-base"
+            || arg == "-Wl,--dynamicbase"
+            || arg == "-Wl,--large-address-aware"
+            || (arg.starts_with("-Wl,")
+                && (arg.ends_with("/list.def") || arg.ends_with("\\list.def")))
+        {
+            return FilteredArg::Skip;
+        } else if arg == "-lmsvcrt" {
+            return FilteredArg::Skip;
+        }
+    } else if arg == "-Wl,--no-undefined-version"
+        || arg == "-Wl,-znostart-stop-gc"
+        || arg.starts_with("-Wl,-plugin-opt")
+    {
+        return FilteredArg::Skip;
+    }
+    if target_info.is_musl() || target_info.is_ohos() {
+        if (arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt"))
+            || arg == "-Wl,-melf_i386"
+        {
+            return FilteredArg::Skip;
+        }
+        if rustc_ver.major == 1
+            && rustc_ver.minor < 59
+            && arg.ends_with(".rlib")
+            && arg.contains("liblibc-")
+        {
+            return FilteredArg::Skip;
+        }
+        if arg == "-lc" {
+            return FilteredArg::Skip;
+        }
+    }
+    if arg.starts_with("-march=") {
+        if target_info.is_arm() || target_info.is_i386() {
+            return FilteredArg::Skip;
+        } else if target_info.is_riscv64() {
+            return FilteredArg::Keep(vec!["-march=generic_rv64".to_string()]);
+        } else if target_info.is_riscv32() {
+            return FilteredArg::Keep(vec!["-march=generic_rv32".to_string()]);
+        } else if arg.starts_with("-march=armv")
+            && (target_info.is_aarch64() || target_info.is_aarch64_be())
+        {
+            let march_value = arg.strip_prefix("-march=").unwrap();
+            let features = if let Some(pos) = march_value.find('+') {
+                &march_value[pos..]
+            } else {
+                ""
+            };
+            let base_cpu = if target_info.is_apple_platform() {
+                target_info.apple_cpu()
+            } else {
+                "generic"
+            };
+            let mut result = vec![format!("-mcpu={}{}", base_cpu, features)];
+            if features.contains("+crypto") {
+                result.append(&mut vec!["-Xassembler".to_owned(), arg.to_string()]);
+            }
+            return FilteredArg::Keep(result);
+        }
+    }
+    if target_info.is_apple_platform() {
+        if (zig_version.major, zig_version.minor) < (0, 16) {
+            if arg.starts_with("-Wl,-exported_symbols_list,") {
+                return FilteredArg::Skip;
+            }
+            if arg == "-Wl,-exported_symbols_list" {
+                return FilteredArg::SkipWithNext;
+            }
+        }
+        if arg == "-Wl,-dylib" {
+            return FilteredArg::Skip;
+        }
+    }
+    // Handle two-arg form on all platforms (cross-compilation from non-Apple hosts)
+    if (zig_version.major, zig_version.minor) < (0, 16) {
+        if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
+            return FilteredArg::SkipWithNext;
+        }
+        if arg.starts_with("-Wl,-exported_symbols_list,") || arg.starts_with("-Wl,--dynamic-list,")
+        {
+            return FilteredArg::Skip;
+        }
+    }
+    if target_info.is_freebsd() {
+        let ignored_libs = ["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"];
+        if ignored_libs.contains(&arg) {
+            return FilteredArg::Skip;
+        }
+    }
+    FilteredArg::Keep(vec![arg.to_string()])
+}
+
+impl Zig {
     fn has_undefined_dynamic_lookup(&self, args: &[String]) -> bool {
         let undefined = args
             .iter()
@@ -2135,5 +2119,336 @@ mod tests {
         // Simple args should not be quoted
         assert!(result.contains("-target"));
         assert!(!result.contains("\"-target\""));
+    }
+
+    fn make_rustc_ver(major: u64, minor: u64, patch: u64) -> rustc_version::Version {
+        rustc_version::Version::new(major, minor, patch)
+    }
+
+    fn make_zig_ver(major: u64, minor: u64, patch: u64) -> semver::Version {
+        semver::Version::new(major, minor, patch)
+    }
+
+    fn run_filter(args: &[&str], target: Option<&str>, zig_ver: (u64, u64)) -> Vec<String> {
+        let rustc_ver = make_rustc_ver(1, 80, 0);
+        let zig_version = make_zig_ver(0, zig_ver.0, zig_ver.1);
+        let target_info = TargetInfo::new(target.map(|s| s.to_string()).as_ref());
+        filter_linker_args(
+            args.iter().map(|s| s.to_string()),
+            &rustc_ver,
+            &zig_version,
+            &target_info,
+        )
+    }
+
+    fn run_filter_one(arg: &str, target: Option<&str>, zig_ver: (u64, u64)) -> Vec<String> {
+        run_filter(&[arg], target, zig_ver)
+    }
+
+    fn run_filter_one_rustc(
+        arg: &str,
+        target: Option<&str>,
+        zig_ver: (u64, u64),
+        rustc_minor: u64,
+    ) -> Vec<String> {
+        let rustc_ver = make_rustc_ver(1, rustc_minor, 0);
+        let zig_version = make_zig_ver(0, zig_ver.0, zig_ver.1);
+        let target_info = TargetInfo::new(target.map(|s| s.to_string()).as_ref());
+        filter_linker_args(
+            std::iter::once(arg.to_string()),
+            &rustc_ver,
+            &zig_version,
+            &target_info,
+        )
+    }
+
+    #[test]
+    fn test_filter_common_replacements() {
+        let linux = Some("x86_64-unknown-linux-gnu");
+        // -lgcc_s -> -lunwind
+        assert_eq!(run_filter_one("-lgcc_s", linux, (13, 0)), vec!["-lunwind"]);
+        // --target= stripped (already passed via -target)
+        assert!(run_filter_one("--target=x86_64-unknown-linux-gnu", linux, (13, 0)).is_empty());
+        // -e<entry> transformed to -Wl,--entry=<entry>
+        assert_eq!(
+            run_filter_one("-emain", linux, (13, 0)),
+            vec!["-Wl,--entry=main"]
+        );
+        // -export-* should NOT be transformed
+        assert_eq!(
+            run_filter_one("-export-dynamic", linux, (13, 0)),
+            vec!["-export-dynamic"]
+        );
+    }
+
+    #[test]
+    fn test_filter_compiler_builtins_removed() {
+        for target in &["armv7-unknown-linux-gnueabihf", "x86_64-pc-windows-gnu"] {
+            let result = run_filter_one(
+                "/path/to/libcompiler_builtins-abc123.rlib",
+                Some(target),
+                (13, 0),
+            );
+            assert!(
+                result.is_empty(),
+                "compiler_builtins should be removed for {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_windows_gnu_args() {
+        let gnu = Some("x86_64-pc-windows-gnu");
+        // Args that should be removed entirely
+        let removed: &[&str] = &[
+            "-lwindows",
+            "-l:libpthread.a",
+            "-lgcc",
+            "-Wl,--disable-auto-image-base",
+            "-Wl,--dynamicbase",
+            "-Wl,--large-address-aware",
+            "-Wl,/path/to/list.def",
+            "-Wl,C:\\path\\to\\list.def",
+            "-lmsvcrt",
+        ];
+        for arg in removed {
+            let result = run_filter_one(arg, gnu, (13, 0));
+            assert!(result.is_empty(), "{arg} should be removed for windows-gnu");
+        }
+        // Args that get replaced
+        let replaced: &[(&str, (u64, u64), &str)] = &[
+            ("-lgcc_eh", (13, 0), "-lc++"),
+            ("-Wl,-Bdynamic", (13, 0), "-Wl,-search_paths_first"),
+        ];
+        for (arg, zig_ver, expected) in replaced {
+            let result = run_filter_one(arg, gnu, *zig_ver);
+            assert_eq!(result, vec![*expected], "filter({arg})");
+        }
+        // -lgcc_eh kept on zig >= 0.14 for x86_64
+        let result = run_filter_one("-lgcc_eh", gnu, (14, 0));
+        assert_eq!(result, vec!["-lgcc_eh"]);
+    }
+
+    #[test]
+    fn test_filter_windows_gnu_rsbegin() {
+        // i686: rsbegin.o filtered out
+        let result = run_filter_one("/path/to/rsbegin.o", Some("i686-pc-windows-gnu"), (13, 0));
+        assert!(result.is_empty());
+        // x86_64: rsbegin.o kept
+        let result = run_filter_one("/path/to/rsbegin.o", Some("x86_64-pc-windows-gnu"), (13, 0));
+        assert_eq!(result, vec!["/path/to/rsbegin.o"]);
+    }
+
+    #[test]
+    fn test_filter_unsupported_linker_args() {
+        let linux = Some("x86_64-unknown-linux-gnu");
+        let removed: &[&str] = &[
+            "-Wl,--no-undefined-version",
+            "-Wl,-znostart-stop-gc",
+            "-Wl,-plugin-opt=O2",
+        ];
+        for arg in removed {
+            let result = run_filter_one(arg, linux, (13, 0));
+            assert!(result.is_empty(), "{arg} should be removed");
+        }
+    }
+
+    #[test]
+    fn test_filter_musl_args() {
+        let musl = Some("x86_64-unknown-linux-musl");
+        let removed: &[&str] = &["/path/self-contained/crt1.o", "-lc"];
+        for arg in removed {
+            let result = run_filter_one(arg, musl, (13, 0));
+            assert!(result.is_empty(), "{arg} should be removed for musl");
+        }
+        // -Wl,-melf_i386 for i686 musl
+        let result = run_filter_one("-Wl,-melf_i386", Some("i686-unknown-linux-musl"), (13, 0));
+        assert!(result.is_empty());
+        // liblibc removed for old rustc (<1.59), kept for new
+        let result = run_filter_one_rustc("/path/to/liblibc-abc123.rlib", musl, (13, 0), 58);
+        assert!(result.is_empty());
+        let result = run_filter_one_rustc("/path/to/liblibc-abc123.rlib", musl, (13, 0), 59);
+        assert_eq!(result, vec!["/path/to/liblibc-abc123.rlib"]);
+    }
+
+    #[test]
+    fn test_filter_march_args() {
+        // (input, target, expected)
+        let cases: &[(&str, &str, &[&str])] = &[
+            // arm: removed
+            ("-march=armv7-a", "armv7-unknown-linux-gnueabihf", &[]),
+            // riscv64: replaced
+            (
+                "-march=rv64gc",
+                "riscv64gc-unknown-linux-gnu",
+                &["-march=generic_rv64"],
+            ),
+            // riscv32: replaced
+            (
+                "-march=rv32imac",
+                "riscv32imac-unknown-none-elf",
+                &["-march=generic_rv32"],
+            ),
+            // aarch64 armv: converted to -mcpu=generic
+            (
+                "-march=armv8.4-a",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=generic"],
+            ),
+            // aarch64 armv with crypto: adds -Xassembler
+            (
+                "-march=armv8.4-a+crypto",
+                "aarch64-unknown-linux-gnu",
+                &[
+                    "-mcpu=generic+crypto",
+                    "-Xassembler",
+                    "-march=armv8.4-a+crypto",
+                ],
+            ),
+            // apple aarch64: uses apple cpu name
+            (
+                "-march=armv8.4-a",
+                "aarch64-apple-darwin",
+                &["-mcpu=apple_m1"],
+            ),
+        ];
+        for (input, target, expected) in cases {
+            let result = run_filter_one(input, Some(target), (13, 0));
+            assert_eq!(&result, expected, "filter({input}, {target})");
+        }
+    }
+
+    #[test]
+    fn test_filter_apple_args() {
+        let darwin = Some("aarch64-apple-darwin");
+        let result = run_filter_one("-Wl,-dylib", darwin, (13, 0));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_filter_freebsd_libs_removed() {
+        for lib in &["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"] {
+            let result = run_filter_one(lib, Some("x86_64-unknown-freebsd"), (13, 0));
+            assert!(result.is_empty(), "{lib} should be removed for freebsd");
+        }
+    }
+
+    #[test]
+    fn test_filter_exported_symbols_list_two_arg_apple() {
+        let result = run_filter(
+            &[
+                "-arch",
+                "arm64",
+                "-Wl,-exported_symbols_list",
+                "-Wl,/tmp/rustcXXX/list",
+                "-o",
+                "output.dylib",
+            ],
+            Some("aarch64-apple-darwin"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-arch", "arm64", "-o", "output.dylib"]);
+    }
+
+    #[test]
+    fn test_filter_exported_symbols_list_two_arg_cross_platform() {
+        let result = run_filter(
+            &[
+                "-arch",
+                "arm64",
+                "-Wl,-exported_symbols_list",
+                "-Wl,C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\rustcXXX\\list",
+                "-o",
+                "output.dylib",
+            ],
+            None,
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-arch", "arm64", "-o", "output.dylib"]);
+    }
+
+    #[test]
+    fn test_filter_exported_symbols_list_single_arg_comma() {
+        let result = run_filter(
+            &[
+                "-Wl,-exported_symbols_list,/tmp/rustcXXX/list",
+                "-o",
+                "output.dylib",
+            ],
+            Some("aarch64-apple-darwin"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-o", "output.dylib"]);
+    }
+
+    #[test]
+    fn test_filter_exported_symbols_list_not_filtered_zig_016() {
+        let result = run_filter(
+            &[
+                "-Wl,-exported_symbols_list",
+                "-Wl,/tmp/rustcXXX/list",
+                "-o",
+                "output.dylib",
+            ],
+            Some("aarch64-apple-darwin"),
+            (16, 0),
+        );
+        assert_eq!(
+            result,
+            vec![
+                "-Wl,-exported_symbols_list",
+                "-Wl,/tmp/rustcXXX/list",
+                "-o",
+                "output.dylib"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_filter_dynamic_list_two_arg() {
+        let result = run_filter(
+            &[
+                "-Wl,--dynamic-list",
+                "-Wl,/tmp/rustcXXX/list",
+                "-o",
+                "output.so",
+            ],
+            Some("x86_64-unknown-linux-gnu"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-o", "output.so"]);
+    }
+
+    #[test]
+    fn test_filter_dynamic_list_single_arg_comma() {
+        let result = run_filter(
+            &["-Wl,--dynamic-list,/tmp/rustcXXX/list", "-o", "output.so"],
+            Some("x86_64-unknown-linux-gnu"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-o", "output.so"]);
+    }
+
+    #[test]
+    fn test_filter_preserves_normal_args() {
+        let result = run_filter(
+            &["-arch", "arm64", "-lSystem", "-lc", "-o", "output"],
+            Some("aarch64-apple-darwin"),
+            (13, 0),
+        );
+        assert_eq!(
+            result,
+            vec!["-arch", "arm64", "-lSystem", "-lc", "-o", "output"]
+        );
+    }
+
+    #[test]
+    fn test_filter_skip_next_at_end_of_args() {
+        let result = run_filter(
+            &["-o", "output", "-Wl,-exported_symbols_list"],
+            Some("aarch64-apple-darwin"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-o", "output"]);
     }
 }
