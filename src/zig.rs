@@ -314,6 +314,16 @@ impl Zig {
                 skip_next_arg = false;
                 continue;
             }
+            // Filter out two-arg form: "-Wl,-exported_symbols_list" "-Wl,<path>"
+            // and "-Wl,--dynamic-list" "-Wl,<path>"
+            // zig < 0.16 doesn't pass these through to lld even though lld supports them
+            // See https://github.com/rust-cross/cargo-zigbuild/issues/355
+            if (zig_version.major, zig_version.minor) < (0, 16)
+                && (arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list")
+            {
+                skip_next_arg = true;
+                continue;
+            }
             let args = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
                 vec![self.process_linker_response_file(
                     arg,
@@ -324,16 +334,7 @@ impl Zig {
             } else {
                 self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info)
             };
-            for arg in args {
-                if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
-                    // Filter out this and the next argument
-                    // zig cc doesn't pass these through to lld even though lld supports them
-                    // See https://github.com/rust-cross/cargo-zigbuild/issues/355
-                    skip_next_arg = true;
-                } else {
-                    new_cmd_args.push(arg);
-                }
-            }
+            new_cmd_args.extend(args);
         }
 
         if target_info.is_mips32() {
@@ -412,6 +413,26 @@ impl Zig {
             .split('\n')
             .flat_map(|arg| self.filter_linker_arg(arg, rustc_ver, zig_version, target_info))
             .collect();
+        // Filter out two-arg form: "-Wl,-exported_symbols_list" "-Wl,<path>"
+        // and "-Wl,--dynamic-list" "-Wl,<path>"
+        // zig < 0.16 doesn't pass these through to lld even though lld supports them
+        // See https://github.com/rust-cross/cargo-zigbuild/issues/355
+        if (zig_version.major, zig_version.minor) < (0, 16) {
+            let mut filtered = Vec::with_capacity(link_args.len());
+            let mut skip_next = false;
+            for arg in link_args {
+                if skip_next {
+                    skip_next = false;
+                    continue;
+                }
+                if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
+                    skip_next = true;
+                    continue;
+                }
+                filtered.push(arg);
+            }
+            link_args = filtered;
+        }
         if self.has_undefined_dynamic_lookup(&link_args) {
             link_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
@@ -575,9 +596,12 @@ impl Zig {
                 }
             }
         }
-        if target_info.is_macos() {
-            if arg.starts_with("-Wl,-exported_symbols_list,") {
-                // zig doesn't support -exported_symbols_list arg
+        if target_info.is_apple_platform() {
+            if (zig_version.major, zig_version.minor) < (0, 16)
+                && (arg.starts_with("-Wl,-exported_symbols_list,")
+                    || arg == "-Wl,-exported_symbols_list")
+            {
+                // zig < 0.16 doesn't support -exported_symbols_list arg
                 // https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-exported_symbols_list
                 return vec![];
             }
