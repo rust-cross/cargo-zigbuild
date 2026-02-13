@@ -1,13 +1,13 @@
 [package]
 name = "cargo-zigbuild"
 version = "0.21.8"
-edition = "2021"
+edition = "2024"
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/rust-cross/cargo-zigbuild"
-rust-version = "1.85"
+rust-version = "1.88"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,7 +15,7 @@ rust-version = "1.85"
 anyhow = "1.0.53"
 cargo-config2 = "0.1.24"
 cargo-options = "0.7.4"
-cargo_metadata = "0.20.0"
+cargo_metadata = "0.23.1"
 clap = { version = "4.3.0", features = ["derive", "env", "wrap_help", "unstable-styles"] }
 crc = "3.2.1"
 dirs = "6.0.0"
