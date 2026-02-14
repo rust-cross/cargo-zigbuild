@@ -858,8 +858,23 @@ impl Zig {
         enable_zig_ar: bool,
     ) -> Result<()> {
         // setup zig as linker
-        let rust_targets = cargo
-            .target
+        let cargo_config = cargo_config2::Config::load()?;
+        // Use targets from CLI args, or fall back to cargo config's build.target
+        let config_targets;
+        let raw_targets: &[String] = if cargo.target.is_empty() {
+            if let Some(targets) = &cargo_config.build.target {
+                config_targets = targets
+                    .iter()
+                    .map(|t| t.triple().to_string())
+                    .collect::<Vec<_>>();
+                &config_targets
+            } else {
+                &cargo.target
+            }
+        } else {
+            &cargo.target
+        };
+        let rust_targets = raw_targets
             .iter()
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
             .collect::<Vec<&str>>();
@@ -870,9 +885,9 @@ impl Zig {
             rustc_meta.semver.to_string(),
         );
         let host_target = &rustc_meta.host;
-        for (parsed_target, raw_target) in rust_targets.iter().zip(&cargo.target) {
+        for (parsed_target, raw_target) in rust_targets.iter().zip(raw_targets) {
             let env_target = parsed_target.replace('-', "_");
-            let zig_wrapper = prepare_zig_linker(raw_target)?;
+            let zig_wrapper = prepare_zig_linker(raw_target, &cargo_config)?;
 
             if is_mingw_shell() {
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
@@ -1514,7 +1529,7 @@ impl TargetFlags {
 /// We create different files for different args because otherwise cargo might skip recompiling even
 /// if the linker target changed
 #[allow(clippy::blocks_in_conditions)]
-pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
+pub fn prepare_zig_linker(target: &str, cargo_config: &cargo_config2::Config) -> Result<ZigWrapper> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
         String::new()
@@ -1587,7 +1602,6 @@ pub fn prepare_zig_linker(target: &str) -> Result<ZigWrapper> {
     // commands like `cargo-zigbuild build` are invoked.
     // Currently we only override according to target_cpu.
     let zig_mcpu_override = {
-        let cargo_config = cargo_config2::Config::load()?;
         let rust_flags = cargo_config.rustflags(rust_target)?.unwrap_or_default();
         let encoded_rust_flags = rust_flags.encode()?;
         let target_flags = TargetFlags::parse_from_encoded(OsStr::new(&encoded_rust_flags))?;
