@@ -32,11 +32,11 @@ jobs:
       fail-fast: ${{ !contains(github.event.pull_request.labels.*.name, 'CI-no-fail-fast') }}
       matrix:
         os: [ubuntu-latest, macos-15, windows-latest]
-        toolchain: [1.85.0, stable, nightly]
+        toolchain: [1.88.0, stable, nightly]
         zig: [0.11.0, 0.15.2, master]
         exclude:
           # Only test MSRV with zig stable version
-          - toolchain: 1.85.0
+          - toolchain: 1.88.0
             zig: master
     env:
       RUST_BACKTRACE: "1"
@@ -178,13 +178,10 @@ jobs:
           cargo run zigbuild --target x86_64-unknown-linux-gnu.2.17
       - name: Linux - Test x86_64 glibc run
         if: ${{ matrix.os == 'ubuntu-latest' && (matrix.toolchain == 'stable' || matrix.toolchain == 'nightly') }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: centos:7
-          options: -v ${{ github.workspace }}:/io -w /io
-          run: |
-            ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild
-            ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/io -w /io centos:7 bash -c \
+            "ldd -r -v ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild && \
+             ./target/x86_64-unknown-linux-gnu/debug/cargo-zigbuild --help"
       - name: Linux - Test glibc build
         run: |
           cargo run zigbuild --target aarch64-unknown-linux-gnu

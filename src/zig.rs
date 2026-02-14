@@ -10,7 +10,7 @@ use std::process::{self, Command};
 use std::str;
 use std::sync::OnceLock;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use fs_err as fs;
 use path_slash::PathBufExt;
 use serde::Deserialize;
@@ -352,10 +352,10 @@ impl Zig {
         // For Zig >= 0.15 with macOS, set SDKROOT environment variable
         // if it exists, instead of passing --sysroot
         let mut command = Self::command()?;
-        if (zig_version.major, zig_version.minor) >= (0, 15) {
-            if let Some(sdkroot) = Self::macos_sdk_root() {
-                command.env("SDKROOT", sdkroot);
-            }
+        if (zig_version.major, zig_version.minor) >= (0, 15)
+            && let Some(sdkroot) = Self::macos_sdk_root()
+        {
+            command.env("SDKROOT", sdkroot);
         }
 
         let mut child = command
@@ -630,12 +630,12 @@ impl Zig {
             // Zig 0.12.0+ requires passing `--sysroot`
             // However, for Zig 0.15+, we should use SDKROOT environment variable instead
             // to avoid issues with library paths being interpreted relative to sysroot
-            if let Some(ref sdkroot) = sdkroot {
-                if (zig_version.major, zig_version.minor) < (0, 15) {
-                    new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
-                }
-                // For Zig >= 0.15, SDKROOT will be set as environment variable
+            if let Some(ref sdkroot) = sdkroot
+                && (zig_version.major, zig_version.minor) < (0, 15)
+            {
+                new_cmd_args.push(format!("--sysroot={}", sdkroot.display()));
             }
+            // For Zig >= 0.15, SDKROOT will be set as environment variable
         }
         if let Some(ref sdkroot) = sdkroot {
             if (zig_version.major, zig_version.minor) < (0, 15) {
@@ -723,10 +723,10 @@ impl Zig {
             return Ok(version.clone());
         }
         // Check for cached version from environment variable first
-        if let Ok(version_str) = env::var("CARGO_ZIGBUILD_ZIG_VERSION") {
-            if let Ok(version) = semver::Version::parse(&version_str) {
-                return Ok(ZIG_VERSION.get_or_init(|| version).clone());
-            }
+        if let Ok(version_str) = env::var("CARGO_ZIGBUILD_ZIG_VERSION")
+            && let Ok(version) = semver::Version::parse(&version_str)
+        {
+            return Ok(ZIG_VERSION.get_or_init(|| version).clone());
         }
         let output = Self::command()?.arg("version").output()?;
         let version_str =
@@ -916,12 +916,10 @@ impl Zig {
                 && env::var_os(format!("CMAKE_TOOLCHAIN_FILE_{parsed_target}")).is_none()
                 && env::var_os("TARGET_CMAKE_TOOLCHAIN_FILE").is_none()
                 && env::var_os("CMAKE_TOOLCHAIN_FILE").is_none()
-            {
-                if let Ok(cmake_toolchain_file) =
+                && let Ok(cmake_toolchain_file) =
                     Self::setup_cmake_toolchain(parsed_target, &zig_wrapper, enable_zig_ar)
-                {
-                    cmd.env(cmake_toolchain_file_env, cmake_toolchain_file);
-                }
+            {
+                cmd.env(cmake_toolchain_file_env, cmake_toolchain_file);
             }
 
             if raw_target.contains("windows-gnu") {
@@ -940,13 +938,12 @@ impl Zig {
                 }
             }
 
-            if raw_target.contains("apple-darwin") {
-                if let Some(sdkroot) = Self::macos_sdk_root() {
-                    if env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none() {
-                        // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
-                        cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
-                    }
-                }
+            if raw_target.contains("apple-darwin")
+                && let Some(sdkroot) = Self::macos_sdk_root()
+                && env::var_os("PKG_CONFIG_SYSROOT_DIR").is_none()
+            {
+                // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
+                cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
             }
 
             // Enable unstable `target-applies-to-host` option automatically
@@ -1305,16 +1302,16 @@ impl Zig {
                         fs::write(arm_features_h, ARM_FEATURES_H)?;
                     }
                 }
-            } else if target.contains("windows-gnu") {
-                if let Ok(lib_dir) = Zig::lib_dir() {
-                    let lib_common = lib_dir.join("libc").join("mingw").join("lib-common");
-                    let synchronization_def = lib_common.join("synchronization.def");
-                    if !synchronization_def.is_file() {
-                        let api_ms_win_core_synch_l1_2_0_def =
-                            lib_common.join("api-ms-win-core-synch-l1-2-0.def");
-                        // Ignore error
-                        fs::copy(api_ms_win_core_synch_l1_2_0_def, synchronization_def).ok();
-                    }
+            } else if target.contains("windows-gnu")
+                && let Ok(lib_dir) = Zig::lib_dir()
+            {
+                let lib_common = lib_dir.join("libc").join("mingw").join("lib-common");
+                let synchronization_def = lib_common.join("synchronization.def");
+                if !synchronization_def.is_file() {
+                    let api_ms_win_core_synch_l1_2_0_def =
+                        lib_common.join("api-ms-win-core-synch-l1-2-0.def");
+                    // Ignore error
+                    fs::copy(api_ms_win_core_synch_l1_2_0_def, synchronization_def).ok();
                 }
             }
         }
