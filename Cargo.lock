@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-zigbuild"
-version = "0.21.8"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "cargo-config2",
