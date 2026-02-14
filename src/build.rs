@@ -76,8 +76,7 @@ impl Build {
         let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
         metadata_cmd.manifest_path(manifest_path);
         let metadata = metadata_cmd.exec()?;
-        let member_ids: std::collections::HashSet<_> =
-            metadata.workspace_members.iter().collect();
+        let member_ids: std::collections::HashSet<_> = metadata.workspace_members.iter().collect();
 
         let mut x86_64_artifacts = Vec::new();
         let mut aarch64_artifacts = Vec::new();
