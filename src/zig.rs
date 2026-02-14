@@ -922,6 +922,17 @@ impl Zig {
                 cmd.env(cmake_toolchain_file_env, cmake_toolchain_file);
             }
 
+            // On Windows, cmake defaults to the Visual Studio generator which ignores
+            // CMAKE_C_COMPILER from the toolchain file. Force Ninja to ensure zig cc
+            // is used for cross-compilation.
+            // See https://github.com/rust-cross/cargo-zigbuild/issues/174
+            if cfg!(target_os = "windows")
+                && env::var_os("CMAKE_GENERATOR").is_none()
+                && which::which("ninja").is_ok()
+            {
+                cmd.env("CMAKE_GENERATOR", "Ninja");
+            }
+
             if raw_target.contains("windows-gnu") {
                 cmd.env("WINAPI_NO_BUNDLED_LIBRARIES", "1");
                 // Add the cache directory to PATH so rustc can find architecture-specific dlltool
