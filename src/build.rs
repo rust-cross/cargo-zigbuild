@@ -68,7 +68,7 @@ impl Build {
         use std::io::BufReader;
         use std::path::Path;
 
-        // Find root crate package id
+        // Find workspace member package ids
         let manifest_path = self
             .manifest_path
             .as_deref()
@@ -76,7 +76,8 @@ impl Build {
         let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
         metadata_cmd.manifest_path(manifest_path);
         let metadata = metadata_cmd.exec()?;
-        let root_pkg = metadata.root_package().expect("Should have a root package");
+        let member_ids: std::collections::HashSet<_> =
+            metadata.workspace_members.iter().collect();
 
         let mut x86_64_artifacts = Vec::new();
         let mut aarch64_artifacts = Vec::new();
@@ -89,7 +90,7 @@ impl Build {
             let message = message.context("Failed to parse cargo metadata message")?;
             match message {
                 Message::CompilerArtifact(artifact) => {
-                    if artifact.package_id == root_pkg.id {
+                    if member_ids.contains(&artifact.package_id) {
                         for filename in artifact.filenames {
                             if filename.as_str().contains("x86_64-apple-darwin") {
                                 x86_64_artifacts.push(filename);
