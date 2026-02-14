@@ -1368,6 +1368,16 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
+        // Prevent cmake from searching the host system's include and library paths,
+        // which can conflict with zig's bundled headers (e.g. __COLD in sys/cdefs.h).
+        // See https://github.com/rust-cross/cargo-zigbuild/issues/268
+        content.push_str(
+            r#"
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)"#,
+        );
         write_file(&toolchain_file, &content)?;
         Ok(toolchain_file)
     }
