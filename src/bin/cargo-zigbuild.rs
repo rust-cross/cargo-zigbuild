@@ -56,6 +56,8 @@ fn main() -> anyhow::Result<()> {
             args: args.collect(),
         };
         zig.execute()?;
+    } else if program_name.eq_ignore_ascii_case("install_name_tool") {
+        cargo_zigbuild::macos::install_name_tool::execute(args)?;
     } else {
         let opt = Opt::parse();
         match opt {
