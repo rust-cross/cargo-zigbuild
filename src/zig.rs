@@ -1404,6 +1404,26 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
                 zig_wrapper.ar.to_slash_lossy()
             ));
         }
+        // When cross-compiling to Darwin from a non-macOS host, CMake requires
+        // install_name_tool and otool which don't exist on Linux/Windows.
+        // Provide our own install_name_tool implementation via symlink wrapper,
+        // and a no-op script for otool (not needed for builds) if no system otool exists.
+        if system_name == "Darwin" && !cfg!(target_os = "macos") {
+            let exe_ext = if cfg!(windows) { ".exe" } else { "" };
+            let install_name_tool = cache_dir().join(format!("install_name_tool{exe_ext}"));
+            symlink_wrapper(&install_name_tool)?;
+            content.push_str(&format!(
+                "\nset(CMAKE_INSTALL_NAME_TOOL {})",
+                install_name_tool.to_slash_lossy()
+            ));
+
+            if which::which("otool").is_err() {
+                let script_ext = if cfg!(windows) { "bat" } else { "sh" };
+                let otool = cmake.join(format!("otool.{script_ext}"));
+                write_noop_script(&otool)?;
+                content.push_str(&format!("\nset(CMAKE_OTOOL {})", otool.to_slash_lossy()));
+            }
+        }
         // Prevent cmake from searching the host system's include and library paths,
         // which can conflict with zig's bundled headers (e.g. __COLD in sys/cdefs.h).
         // See https://github.com/rust-cross/cargo-zigbuild/issues/268
@@ -1455,6 +1475,35 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)"#,
 fn write_file(path: &Path, content: &str) -> Result<(), anyhow::Error> {
     let existing_content = fs::read_to_string(path).unwrap_or_default();
     if existing_content != content {
+        fs::write(path, content)?;
+    }
+    Ok(())
+}
+
+/// Write a no-op shell/batch script for use as a placeholder tool.
+/// Used for macOS-specific tools (install_name_tool, otool) when cross-compiling
+/// to Darwin from non-macOS hosts.
+#[cfg(target_family = "unix")]
+fn write_noop_script(path: &Path) -> Result<()> {
+    let content = "#!/bin/sh\nexit 0\n";
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    if existing != content {
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .mode(0o700)
+            .open(path)?
+            .write_all(content.as_bytes())?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_family = "unix"))]
+fn write_noop_script(path: &Path) -> Result<()> {
+    let content = "@echo off\r\nexit /b 0\r\n";
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    if existing != content {
         fs::write(path, content)?;
     }
     Ok(())
