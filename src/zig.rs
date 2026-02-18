@@ -542,6 +542,16 @@ fn filter_linker_arg(
             return FilteredArg::Skip;
         }
     }
+    // zig cc only supports -Wp,-MD, -Wp,-MMD, and -Wp,-MT;
+    // strip all other -Wp, args (e.g. -Wp,-U_FORTIFY_SOURCE from CMake)
+    // https://github.com/ziglang/zig/blob/0.15.2/src/main.zig#L2798
+    if arg.starts_with("-Wp,")
+        && !arg.starts_with("-Wp,-MD")
+        && !arg.starts_with("-Wp,-MMD")
+        && !arg.starts_with("-Wp,-MT")
+    {
+        return FilteredArg::Skip;
+    }
     if arg.starts_with("-march=") {
         if target_info.is_arm() || target_info.is_i386() {
             return FilteredArg::Skip;
@@ -2286,6 +2296,32 @@ mod tests {
             let result = run_filter_one(arg, linux, (13, 0));
             assert!(result.is_empty(), "{arg} should be removed");
         }
+    }
+
+    #[test]
+    fn test_filter_wp_args() {
+        let linux = Some("x86_64-unknown-linux-gnu");
+        // Unsupported -Wp, args should be removed
+        for arg in &[
+            "-Wp,-U_FORTIFY_SOURCE",
+            "-Wp,-DFOO=1",
+            "-Wp,-MF,/tmp/t.d",
+            "-Wp,-MQ,foo",
+            "-Wp,-MP",
+        ] {
+            let result = run_filter_one(arg, linux, (13, 0));
+            assert!(result.is_empty(), "{arg} should be removed");
+        }
+        // Supported -Wp, args should be kept (-MD, -MMD, -MT)
+        for arg in &["-Wp,-MD,/tmp/test.d", "-Wp,-MMD,/tmp/test.d", "-Wp,-MT,foo"] {
+            let result = run_filter_one(arg, linux, (13, 0));
+            assert_eq!(result, vec![*arg], "{arg} should be kept");
+        }
+        // bare -U and -D should be kept (zig cc supports them directly)
+        let result = run_filter_one("-U_FORTIFY_SOURCE", linux, (13, 0));
+        assert_eq!(result, vec!["-U_FORTIFY_SOURCE"]);
+        let result = run_filter_one("-DFOO=1", linux, (13, 0));
+        assert_eq!(result, vec!["-DFOO=1"]);
     }
 
     #[test]

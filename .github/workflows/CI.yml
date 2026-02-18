@@ -206,6 +206,29 @@ jobs:
 
           cargo run run --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
           cargo run test --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
+      - name: Test aws-lc-rs build
+        if: ${{ matrix.os != 'windows-latest' && matrix.zig != '0.11.0' }}
+        env:
+          # See https://github.com/aws/aws-lc-rs/issues/512
+          AWS_LC_SYS_NO_ASM: "1"
+        run: |
+          cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-aws-lc-rs/Cargo.toml
+      - name: Test aws-lc-rs build for macOS
+        if: ${{ startsWith(matrix.os, 'ubuntu') && matrix.zig != '0.11.0' }}
+        env:
+          AWS_LC_SYS_NO_ASM: "1"
+          SDK: MacOSX11.3.sdk
+        run: |
+          set -e
+          curl -sqL https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/$SDK.tar.xz | tar -Jx
+          export SDKROOT=$PWD/$SDK
+          cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-aws-lc-rs/Cargo.toml
+      - name: Test aws-lc-rs build for macOS (native)
+        if: ${{ startsWith(matrix.os, 'macos') && matrix.zig != '0.11.0' }}
+        env:
+          AWS_LC_SYS_NO_ASM: "1"
+        run: |
+          cargo run zigbuild --target aarch64-apple-darwin --manifest-path tests/hello-aws-lc-rs/Cargo.toml
       - name: Linux - Test glibc build openssl
         if: matrix.os != 'windows-latest'
         run: |
