@@ -965,9 +965,11 @@ impl Zig {
                 // If system mingw-w64 dlltool exists, prefer it over zig's dlltool
                 let triple: Triple = parsed_target.parse().unwrap_or_else(|_| Triple::unknown());
                 if !has_system_dlltool(&triple.architecture) {
-                    let cache_dir = cache_dir();
+                    // zig_wrapper.ar lives in the per-exe wrapper dir
+                    let wrapper_dir = zig_wrapper.ar.parent().unwrap();
                     let existing_path = env::var_os("PATH").unwrap_or_default();
-                    let paths = std::iter::once(cache_dir).chain(env::split_paths(&existing_path));
+                    let paths = std::iter::once(wrapper_dir.to_path_buf())
+                        .chain(env::split_paths(&existing_path));
                     if let Ok(new_path) = env::join_paths(paths) {
                         cmd.env("PATH", new_path);
                     }
@@ -1359,7 +1361,10 @@ impl Zig {
         zig_wrapper: &ZigWrapper,
         enable_zig_ar: bool,
     ) -> Result<PathBuf> {
-        let cmake = cache_dir().join("cmake");
+        // Place cmake toolchain files alongside the other wrappers in the
+        // per-exe directory to avoid races between parallel builds.
+        let wrapper_dir = zig_wrapper.cc.parent().unwrap();
+        let cmake = wrapper_dir.join("cmake");
         fs::create_dir_all(&cmake)?;
 
         let toolchain_file = cmake.join(format!("{target}-toolchain.cmake"));
@@ -1410,7 +1415,7 @@ set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)"#,
         // and a no-op script for otool (not needed for builds) if no system otool exists.
         if system_name == "Darwin" && !cfg!(target_os = "macos") {
             let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-            let install_name_tool = cache_dir().join(format!("install_name_tool{exe_ext}"));
+            let install_name_tool = wrapper_dir.join(format!("install_name_tool{exe_ext}"));
             symlink_wrapper(&install_name_tool)?;
             content.push_str(&format!(
                 "\nset(CMAKE_INSTALL_NAME_TOOL {})",
@@ -1855,19 +1860,32 @@ pub fn prepare_zig_linker(
     // Use platform-specific quoting: shell_words for Unix (single quotes),
     // custom quoting for Windows batch files (double quotes)
     let cc_args_str = join_args_for_script(&cc_args);
+
+    // Put all generated wrappers and symlinks in a per-exe subdirectory so
+    // that parallel builds driven by different binaries (e.g. multiple maturin
+    // instances in separate temp venvs) never clobber each other.
+    // See https://github.com/rust-cross/cargo-zigbuild/issues/318
+    let current_exe = resolve_current_exe()?;
+    let exe_hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC)
+        .checksum(current_exe.as_os_str().as_encoded_bytes());
+    let wrapper_dir = zig_linker_dir
+        .join("wrappers")
+        .join(format!("{:x}", exe_hash));
+    fs::create_dir_all(&wrapper_dir)?;
+
     let hash = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC).checksum(cc_args_str.as_bytes());
-    let zig_cc = zig_linker_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
-    let zig_cxx = zig_linker_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
-    let zig_ranlib = zig_linker_dir.join(format!("zigranlib.{file_ext}"));
+    let zig_cc = wrapper_dir.join(format!("zigcc-{file_target}-{:x}.{file_ext}", hash));
+    let zig_cxx = wrapper_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
+    let zig_ranlib = wrapper_dir.join(format!("zigranlib.{file_ext}"));
     let zig_version = Zig::zig_version()?;
     write_linker_wrapper(&zig_cc, "cc", &cc_args_str, &zig_version)?;
     write_linker_wrapper(&zig_cxx, "c++", &cc_args_str, &zig_version)?;
     write_linker_wrapper(&zig_ranlib, "ranlib", "", &zig_version)?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-    let zig_ar = zig_linker_dir.join(format!("ar{exe_ext}"));
+    let zig_ar = wrapper_dir.join(format!("ar{exe_ext}"));
     symlink_wrapper(&zig_ar)?;
-    let zig_lib = zig_linker_dir.join(format!("lib{exe_ext}"));
+    let zig_lib = wrapper_dir.join(format!("lib{exe_ext}"));
     symlink_wrapper(&zig_lib)?;
 
     // Create dlltool symlinks for Windows GNU targets, but only if no system dlltool exists
@@ -1882,7 +1900,7 @@ pub fn prepare_zig_linker(
         // System dlltool (from mingw-w64) handles raw-dylib better than zig's dlltool
         if !has_system_dlltool(&triple.architecture) {
             let dlltool_name = get_dlltool_name(&triple.architecture);
-            let zig_dlltool = zig_linker_dir.join(format!("{dlltool_name}{exe_ext}"));
+            let zig_dlltool = wrapper_dir.join(format!("{dlltool_name}{exe_ext}"));
             symlink_wrapper(&zig_dlltool)?;
         }
     }
@@ -1896,12 +1914,17 @@ pub fn prepare_zig_linker(
     })
 }
 
-fn symlink_wrapper(target: &Path) -> Result<()> {
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
+/// Resolve the current executable path, preferring the test override env var.
+fn resolve_current_exe() -> Result<PathBuf> {
+    if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
+        Ok(PathBuf::from(exe))
     } else {
-        env::current_exe()?
-    };
+        Ok(env::current_exe()?)
+    }
+}
+
+fn symlink_wrapper(target: &Path) -> Result<()> {
+    let current_exe = resolve_current_exe()?;
     #[cfg(windows)]
     {
         if !target.exists() {
@@ -1990,11 +2013,7 @@ fn write_linker_wrapper(
     zig_version: &semver::Version,
 ) -> Result<()> {
     let mut buf = Vec::<u8>::new();
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
+    let current_exe = resolve_current_exe()?;
     writeln!(&mut buf, "#!/bin/sh")?;
 
     // Export zig version to avoid spawning `zig version` subprocess
@@ -2040,11 +2059,7 @@ fn write_linker_wrapper(
     zig_version: &semver::Version,
 ) -> Result<()> {
     let mut buf = Vec::<u8>::new();
-    let current_exe = if let Ok(exe) = env::var("CARGO_BIN_EXE_cargo-zigbuild") {
-        PathBuf::from(exe)
-    } else {
-        env::current_exe()?
-    };
+    let current_exe = resolve_current_exe()?;
     let current_exe = if is_mingw_shell() {
         current_exe.to_slash_lossy().to_string()
     } else {
