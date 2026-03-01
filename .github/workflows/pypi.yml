@@ -24,7 +24,7 @@ jobs:
           target: universal2-apple-darwin
           args: --release --out dist --strip
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-universal2
           path: dist
@@ -50,7 +50,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --strip
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.platform.arch }}
           path: dist
@@ -87,7 +87,7 @@ jobs:
           container: off
           args: --release -o dist --strip
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.platform.target }}
           path: dist
