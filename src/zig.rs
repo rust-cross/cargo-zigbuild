@@ -146,7 +146,7 @@ impl TargetInfo {
     fn is_macos(&self) -> bool {
         self.target
             .as_ref()
-            .map(|x| x.contains("macos"))
+            .map(|x| x.contains("macos") || x.contains("maccatalyst"))
             .unwrap_or_default()
     }
 
@@ -167,6 +167,7 @@ impl TargetInfo {
                     || x.contains("tvos")
                     || x.contains("watchos")
                     || x.contains("visionos")
+                    || x.contains("maccatalyst")
             })
             .unwrap_or_default()
     }
@@ -309,10 +310,21 @@ impl Zig {
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
         let mut skip_next_arg = false;
+        let mut seen_target = false;
         for arg in cmd_args {
             if skip_next_arg {
                 skip_next_arg = false;
                 continue;
+            }
+            // Our wrapper script already passes the correct -target;
+            // skip any duplicate -target from rustc to avoid conflicts
+            // (e.g. rustc passes arm64 which zig doesn't recognize for some targets)
+            if arg == "-target" {
+                if seen_target {
+                    skip_next_arg = true;
+                    continue;
+                }
+                seen_target = true;
             }
             let args = if arg.starts_with('@') && arg.ends_with("linker-arguments") {
                 vec![self.process_linker_response_file(
@@ -1758,6 +1770,12 @@ pub fn prepare_zig_linker(
             cc_args.push("-target".to_string());
             cc_args.push(format!("{arch}-wasi.0.1.0{abi_suffix}"));
         }
+        OperatingSystem::IOS(_) if triple.environment == Environment::Macabi => {
+            // Mac Catalyst (aarch64-apple-ios-macabi / x86_64-apple-ios-macabi)
+            // maps to zig's maccatalyst target
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{arch}-maccatalyst-none{abi_suffix}"));
+        }
         OperatingSystem::Freebsd => {
             let zig_arch = match arch.as_str() {
                 "i686" => {
@@ -1772,6 +1790,10 @@ pub fn prepare_zig_linker(
             };
             cc_args.push("-target".to_string());
             cc_args.push(format!("{zig_arch}-freebsd"));
+        }
+        OperatingSystem::Openbsd => {
+            cc_args.push("-target".to_string());
+            cc_args.push(format!("{arch}-openbsd"));
         }
         OperatingSystem::Unknown => {
             if triple.architecture == Architecture::Wasm32
