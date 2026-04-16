@@ -20,7 +20,7 @@ RUN cargo build --manifest-path /cargo-zigbuild/Cargo.toml --release
 FROM rust:$RUST_VERSION
 
 # Install Zig
-ARG ZIG_VERSION=0.15.2
+ARG ZIG_VERSION=0.16.0
 # Zig 0.14.0+ changed the tarball naming convention: zig-{arch}-{os}-{version} instead of zig-{os}-{arch}-{version}
 # We detect the version and construct the appropriate URL and directory path
 RUN \
