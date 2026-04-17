@@ -125,7 +125,7 @@ Provided you have no stripped the symbols from your binary built, on Linux you c
    #!/bin/bash
    
    FILE_NAME=$1
-   readelf -W --version-info --dyn-syms ${FILE_NAME} \
+   LANG=C readelf -W --version-info --dyn-syms ${FILE_NAME} \
      | grep 'Name: GLIBC' \
      | sed -re 's/.*GLIBC_(.+) Flags.*/\1/g' \
      | sort -t . -k1,1n -k2,2n \
