@@ -86,6 +86,7 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu \
             x86_64-unknown-linux-gnu \
             i686-unknown-linux-gnu \
+            armv5te-unknown-linux-gnueabi \
             arm-unknown-linux-gnueabihf \
             armv7-unknown-linux-gnueabihf \
             aarch64-apple-darwin \
@@ -191,6 +192,7 @@ jobs:
           cargo run zigbuild --target aarch64-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
           cargo run zigbuild --target armv7-unknown-linux-gnueabihf --manifest-path tests/hello-rustls/Cargo.toml
           cargo run zigbuild --target arm-unknown-linux-gnueabihf --manifest-path tests/hello-rustls/Cargo.toml
+          cargo run zigbuild --target armv5te-unknown-linux-gnueabi --manifest-path tests/hello-rustls/Cargo.toml
           cargo run zigbuild --target i686-unknown-linux-gnu --manifest-path tests/hello-rustls/Cargo.toml
 
           # Test building shared library
