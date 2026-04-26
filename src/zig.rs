@@ -351,6 +351,10 @@ impl Zig {
             new_cmd_args.push("-Wl,-z,notext".to_string());
         }
 
+        if target_info.is_windows_gnu() && (zig_version.major, zig_version.minor) >= (0, 16) {
+            new_cmd_args.push("-lcompiler_rt".to_string());
+        }
+
         if self.has_undefined_dynamic_lookup(cmd_args) {
             new_cmd_args.push("-Wl,-undefined=dynamic_lookup".to_string());
         }
