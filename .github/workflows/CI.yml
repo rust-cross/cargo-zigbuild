@@ -49,7 +49,7 @@ jobs:
         with:
           docker-images: false
       - name: setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
       - uses: dtolnay/rust-toolchain@master
         id: rustup
         with:
