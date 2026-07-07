@@ -1639,6 +1639,7 @@ pub fn prepare_zig_linker(
     let arch = triple.architecture.to_string();
     let target_env = match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
+        (Architecture::Mips32(..), Environment::Musl) => Environment::Musleabi,
         (Architecture::Powerpc, Environment::Gnu) => Environment::Gnueabihf,
         (_, Environment::GnuLlvm) => Environment::Gnu,
         (_, environment) => environment,
