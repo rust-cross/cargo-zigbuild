@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: Docker Hub
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
