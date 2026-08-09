@@ -902,6 +902,14 @@ impl Zig {
         } else {
             &cargo.target
         };
+        #[cfg(target_os = "macos")]
+        if !raw_targets.is_empty()
+            && let Err(err) = crate::macos::rlimit::raise_nofile_limit()
+        {
+            eprintln!(
+                "warning: failed to raise the open file limit: {err}; large builds may fail with ProcessFdQuotaExceeded (try `ulimit -n 65536`)"
+            );
+        }
         let rust_targets = raw_targets
             .iter()
             .map(|target| target.split_once('.').map(|(t, _)| t).unwrap_or(target))
