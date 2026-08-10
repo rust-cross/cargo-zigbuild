@@ -33,6 +33,9 @@ shell-words = "1.1.1"
 target-lexicon = { version = "0.13.0", features = ["std"] }
 which = "8.0.0"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.189"
+
 [features]
 default = ["universal2"]
 universal2 = ["fat-macho"]
