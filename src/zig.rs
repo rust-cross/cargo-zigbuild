@@ -555,6 +555,11 @@ fn filter_linker_arg(
     } else if arg.starts_with("-e") && arg.len() > 2 && !arg.starts_with("-export") {
         let entry = &arg[2..];
         return FilteredArg::Keep(vec![format!("-Wl,--entry={}", entry)]);
+    } else if let Some(sym) = arg.strip_prefix("-Wl,--undefined=") {
+        // zig cc rejects `--undefined=SYM` as an unsupported linker arg, but
+        // accepts the synonymous `-u SYM`; used e.g. by cargo-auditable
+        // https://github.com/rust-cross/cargo-zigbuild/issues/162
+        return FilteredArg::Keep(vec![format!("-Wl,-u,{sym}")]);
     }
     if (target_info.is_arm() || target_info.is_windows_gnu())
         && arg.ends_with(".rlib")
@@ -2585,6 +2590,21 @@ mod tests {
             let result = run_filter_one(arg, linux, (13, 0));
             assert!(result.is_empty(), "{arg} should be removed");
         }
+    }
+
+    #[test]
+    fn test_filter_undefined_arg() {
+        let linux = Some("x86_64-unknown-linux-gnu");
+        // `--undefined=SYM` is rewritten to the `-u SYM` synonym zig supports
+        let result = run_filter_one("-Wl,--undefined=AUDITABLE_VERSION_INFO", linux, (13, 0));
+        assert_eq!(result, vec!["-Wl,-u,AUDITABLE_VERSION_INFO"]);
+        // macOS `-undefined dynamic_lookup` (single dash) must not match
+        let result = run_filter_one(
+            "-Wl,-undefined=dynamic_lookup",
+            Some("aarch64-apple-darwin"),
+            (13, 0),
+        );
+        assert_eq!(result, vec!["-Wl,-undefined=dynamic_lookup"]);
     }
 
     #[test]
