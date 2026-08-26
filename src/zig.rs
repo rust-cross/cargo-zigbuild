@@ -369,6 +369,17 @@ impl Zig {
             new_cmd_args.push("-Wl,-z,notext".to_string());
         }
 
+        // Rust's libstd for strict-align arm targets calls the ARM RTABI
+        // unaligned-access helpers (__aeabi_uread4 etc.), which libgcc
+        // provides but zig's compiler-rt does not; link weak definitions
+        if target_info.is_arm() && !cmd_args.iter().any(|x| x == "-c" || x == "-E" || x == "-S") {
+            let cache_dir = cache_dir();
+            fs::create_dir_all(&cache_dir)?;
+            let shim_path = cache_dir.join("aeabi_unaligned.c");
+            write_file(&shim_path, AEABI_UNALIGNED_C)?;
+            new_cmd_args.push(shim_path.display().to_string());
+        }
+
         if target_info.is_windows_gnu() && (zig_version.major, zig_version.minor) >= (0, 16) {
             new_cmd_args.push("-lcompiler_rt".to_string());
         }
@@ -1647,6 +1658,37 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)"#,
         }
     }
 }
+
+/// Weak definitions of the ARM RTABI unaligned-access helpers
+/// (run-time ABI for the ARM architecture, IHI0043, section 4.3.3).
+/// libgcc provides these but LLVM's (and zig's) compiler-rt does not,
+/// and Rust's libstd for strict-align arm targets calls them.
+const AEABI_UNALIGNED_C: &str = r#"
+#ifdef __cplusplus
+extern "C" {
+#endif
+__attribute__((weak)) int __aeabi_uread4(void *address) {
+    int value;
+    __builtin_memcpy(&value, address, 4);
+    return value;
+}
+__attribute__((weak)) int __aeabi_uwrite4(int value, void *address) {
+    __builtin_memcpy(address, &value, 4);
+    return value;
+}
+__attribute__((weak)) long long __aeabi_uread8(void *address) {
+    long long value;
+    __builtin_memcpy(&value, address, 8);
+    return value;
+}
+__attribute__((weak)) long long __aeabi_uwrite8(long long value, void *address) {
+    __builtin_memcpy(address, &value, 8);
+    return value;
+}
+#ifdef __cplusplus
+}
+#endif
+"#;
 
 fn write_file(path: &Path, content: &str) -> Result<(), anyhow::Error> {
     let existing_content = fs::read_to_string(path).unwrap_or_default();
