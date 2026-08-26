@@ -134,6 +134,20 @@ impl TargetInfo {
             .unwrap_or_default()
     }
 
+    fn is_powerpc(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("powerpc"))
+            .unwrap_or_default()
+    }
+
+    fn is_s390x(&self) -> bool {
+        self.target
+            .as_ref()
+            .map(|x| x.starts_with("s390x"))
+            .unwrap_or_default()
+    }
+
     // libc helpers
     fn is_musl(&self) -> bool {
         self.target
@@ -607,36 +621,34 @@ fn filter_linker_arg(
             && (target_info.is_aarch64() || target_info.is_aarch64_be())
         {
             let march_value = arg.strip_prefix("-march=").unwrap();
-            let mut extensions = march_value.split('+');
-            let _arch = extensions.next();
             let base_cpu = if target_info.is_apple_platform() {
                 target_info.apple_cpu()
             } else {
                 "generic"
             };
-            let mut mcpu = format!("-mcpu={base_cpu}");
-            let mut has_crypto = false;
-            for ext in extensions.filter(|e| !e.is_empty() && *e != "none") {
-                has_crypto |= ext == "crypto";
-                // GCC/clang spell disabling an extension `+no<ext>`,
-                // zig's -mcpu spells it `-<feature>`
-                let (sign, name) = match ext.strip_prefix("no") {
-                    Some(name) if !name.is_empty() => ('-', name),
-                    _ => ('+', ext),
-                };
-                mcpu.push(sign);
-                // zig spells multi-word feature names with underscores
-                // (e.g. sve2_aes) and parses `-` as feature subtraction
-                for c in map_aarch64_arch_extension(name).chars() {
-                    mcpu.push(if c == '-' { '_' } else { c });
-                }
-            }
-            let mut result = vec![mcpu];
+            let (features, has_crypto) = map_aarch64_features(march_value);
+            let mut result = vec![format!("-mcpu={base_cpu}{features}")];
             if has_crypto {
                 result.append(&mut vec!["-Xassembler".to_owned(), arg.to_string()]);
             }
             return FilteredArg::Keep(result);
+        } else {
+            // -march values on the remaining architectures are CPU names,
+            // e.g. -march=x86-64-v3
+            let value = arg.strip_prefix("-march=").unwrap();
+            return FilteredArg::Keep(vec![format!("-march={}", map_cpu_name(value, target_info))]);
         }
+    }
+    if let Some((flag @ ("-mcpu" | "-mtune"), value)) = arg.split_once('=') {
+        if target_info.is_aarch64() || target_info.is_aarch64_be() {
+            let cpu = value.split('+').next().unwrap();
+            let (features, _) = map_aarch64_features(value);
+            return FilteredArg::Keep(vec![format!(
+                "{flag}={}{features}",
+                map_cpu_name(cpu, target_info)
+            )]);
+        }
+        return FilteredArg::Keep(vec![format!("{flag}={}", map_cpu_name(value, target_info))]);
     }
     if target_info.is_apple_platform() {
         if (zig_version.major, zig_version.minor) < (0, 16) {
@@ -668,6 +680,62 @@ fn filter_linker_arg(
         }
     }
     FilteredArg::Keep(vec![arg.to_string()])
+}
+
+/// Map the CPU-name part of a GCC/clang `-mcpu`/`-mtune`/`-march` value to
+/// zig's spelling: zig uses underscores where GCC/clang use dashes
+/// (e.g. cortex-a53 -> cortex_a53, x86-64-v3 -> x86_64_v3), and powerpc
+/// CPUs use the LLVM names (e.g. power9 -> pwr9). Any `+ext` suffixes are
+/// preserved as-is; zig-spelled values pass through unchanged.
+fn map_cpu_name(value: &str, target_info: &TargetInfo) -> String {
+    if target_info.is_s390x() {
+        // zig s390x CPU specs like z10-vector use `-` for feature
+        // subtraction, and GCC/clang s390x CPU names contain no dashes
+        return value.to_string();
+    }
+    let (cpu, features) = match value.find('+') {
+        Some(pos) => value.split_at(pos),
+        None => (value, ""),
+    };
+    if target_info.is_powerpc() {
+        let cpu = match cpu {
+            "powerpc" => "ppc".to_string(),
+            "powerpc64" => "ppc64".to_string(),
+            "powerpc64le" => "ppc64le".to_string(),
+            _ => match cpu.strip_prefix("power") {
+                Some(n) if n.starts_with(|c: char| c.is_ascii_digit()) => format!("pwr{n}"),
+                _ => cpu.to_string(),
+            },
+        };
+        return format!("{cpu}{features}");
+    }
+    format!("{}{features}", cpu.replace('-', "_"))
+}
+
+/// Convert the `+ext` suffixes of a GCC/clang aarch64 `-march`/`-mcpu` value
+/// (e.g. `armv8.2-a+sve+nofp16`) into zig's feature syntax (`+sve-fullfp16`).
+/// Returns the feature string and whether `+crypto` was requested.
+fn map_aarch64_features(value: &str) -> (String, bool) {
+    let mut extensions = value.split('+');
+    let _cpu_or_arch = extensions.next();
+    let mut features = String::new();
+    let mut has_crypto = false;
+    for ext in extensions.filter(|e| !e.is_empty() && *e != "none") {
+        has_crypto |= ext == "crypto";
+        // GCC/clang spell disabling an extension `+no<ext>`,
+        // zig's -mcpu spells it `-<feature>`
+        let (sign, name) = match ext.strip_prefix("no") {
+            Some(name) if !name.is_empty() => ('-', name),
+            _ => ('+', ext),
+        };
+        features.push(sign);
+        // zig spells multi-word feature names with underscores
+        // (e.g. sve2_aes) and parses `-` as feature subtraction
+        for c in map_aarch64_arch_extension(name).chars() {
+            features.push(if c == '-' { '_' } else { c });
+        }
+    }
+    (features, has_crypto)
 }
 
 /// Map GCC/clang aarch64 `-march` arch-extension names to the LLVM feature
@@ -2569,6 +2637,74 @@ mod tests {
                 "-march=armv8.2-a+nofp16+nosimd",
                 "aarch64-unknown-linux-gnu",
                 &["-mcpu=generic-fullfp16-neon"],
+            ),
+            // x86-64: -march values are CPU names, spelled with underscores in zig
+            (
+                "-march=x86-64-v3",
+                "x86_64-unknown-linux-gnu",
+                &["-march=x86_64_v3"],
+            ),
+            (
+                "-march=haswell",
+                "x86_64-unknown-linux-gnu",
+                &["-march=haswell"],
+            ),
+        ];
+        for (input, target, expected) in cases {
+            let result = run_filter_one(input, Some(target), (13, 0));
+            assert_eq!(&result, expected, "filter({input}, {target})");
+        }
+    }
+
+    #[test]
+    fn test_filter_mcpu_mtune_args() {
+        // (input, target, expected)
+        let cases: &[(&str, &str, &[&str])] = &[
+            // zig spells CPU names with underscores
+            (
+                "-mcpu=cortex-a53",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=cortex_a53"],
+            ),
+            (
+                "-mcpu=cortex-a7",
+                "arm-unknown-linux-gnueabihf",
+                &["-mcpu=cortex_a7"],
+            ),
+            (
+                "-mtune=x86-64-v3",
+                "x86_64-unknown-linux-gnu",
+                &["-mtune=x86_64_v3"],
+            ),
+            // aarch64 -mcpu arch extensions are mapped like -march ones
+            (
+                "-mcpu=cortex-a53+crypto+nofp16",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=cortex_a53+crypto-fullfp16"],
+            ),
+            // powerpc CPU names use the LLVM spellings
+            (
+                "-mcpu=power9",
+                "powerpc64le-unknown-linux-gnu",
+                &["-mcpu=pwr9"],
+            ),
+            (
+                "-mcpu=powerpc64le",
+                "powerpc64le-unknown-linux-gnu",
+                &["-mcpu=ppc64le"],
+            ),
+            // zig-spelled values pass through unchanged: `-` after a `+` is
+            // zig's feature subtraction, and s390x specs like z10-vector are
+            // never rewritten
+            (
+                "-mcpu=generic+v6+strict_align+vfp2-d32",
+                "arm-unknown-linux-gnueabihf",
+                &["-mcpu=generic+v6+strict_align+vfp2-d32"],
+            ),
+            (
+                "-mcpu=z10-vector",
+                "s390x-unknown-linux-gnu",
+                &["-mcpu=z10-vector"],
             ),
         ];
         for (input, target, expected) in cases {
