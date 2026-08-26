@@ -1314,21 +1314,20 @@ impl Zig {
         }
         let c_paths = c_opts.include_paths;
         let mut cpp_paths = cpp_opts.include_paths;
-        let cpp_pre_len = cpp_paths
+        // The C++ search list is expected to be the C search list with extra
+        // libc++ paths prepended and appended, but zig's layout has varied
+        // across versions/targets, so fall back to zero-length pre/post
+        // regions instead of panicking when a shared path can't be found.
+        let cpp_pre_len = c_paths
             .iter()
-            .position(|p| {
-                p == c_paths
-                    .iter()
-                    .find(|(kind, _)| *kind == Kind::Normal)
-                    .unwrap()
-            })
+            .find(|(kind, _)| *kind == Kind::Normal)
+            .and_then(|first_c| cpp_paths.iter().position(|p| p == first_c))
             .unwrap_or_default();
-        let cpp_post_len = cpp_paths.len()
-            - cpp_paths
-                .iter()
-                .position(|p| p == c_paths.last().unwrap())
-                .unwrap_or_default()
-            - 1;
+        let cpp_post_len = c_paths
+            .last()
+            .and_then(|last_c| cpp_paths.iter().rposition(|p| p == last_c))
+            .map(|pos| cpp_paths.len() - pos - 1)
+            .unwrap_or_default();
 
         // <digression>
         //
@@ -1473,8 +1472,12 @@ impl Zig {
             }
         }
 
-        for (kind, path) in cpp_paths.drain(cpp_paths.len() - cpp_post_len..) {
-            assert!(kind == Kind::Normal);
+        let post_start = cpp_paths.len().saturating_sub(cpp_post_len);
+        for (kind, path) in cpp_paths.drain(post_start..) {
+            if kind != Kind::Normal {
+                // may also be Kind::Framework on macOS
+                continue;
+            }
             args.push("-cxx-isystem".to_owned());
             args.push(path);
         }
