@@ -1386,10 +1386,26 @@ impl Zig {
                 "-D_LIBCPP_HAS_UNICODE=1",
                 "-D_LIBCPP_HAS_THREADS=1",
                 "-D_LIBCPP_HAS_MONOTONIC_CLOCK",
+                // Required by zig 0.17+ libc++ (LLVM 21); harmless no-ops on
+                // older versions, which use the spellings above instead.
+                // Should match `addCxxArgs` in zig's src/libs/libcxx.zig
+                "-D_LIBCPP_ASSERTION_SEMANTIC_DEFAULT=_LIBCPP_ASSERTION_SEMANTIC_ENFORCE",
+                "-D_LIBCPP_PSTL_BACKEND_SERIAL",
+                "-D_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=0",
+                "-D_LIBCPP_HAS_TERMINAL",
+                "-D_LIBCPP_HAS_RANDOM_DEVICE",
+                "-D_LIBCPP_HAS_NO_STD_MODULES",
             ]
             .into_iter()
             .map(ToString::to_string),
         );
+        args.push(format!(
+            "-D_LIBCPP_HAS_FILESYSTEM={}",
+            if raw_target.contains("wasi") { 0 } else { 1 }
+        ));
+        if raw_target.contains("linux") {
+            args.push("-D_LIBCPP_HAS_TIME_ZONE_DATABASE".to_owned());
+        }
         if let Some(ver) = c_opts.glibc_minor_ver {
             // Handled separately because we have no way to infer this without Zig
             args.push(format!("-D__GLIBC_MINOR__={ver}"));
