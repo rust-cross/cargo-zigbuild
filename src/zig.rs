@@ -915,6 +915,20 @@ impl Zig {
         if let Some(cached) = ZIG_PATH.get() {
             return Ok(cached.clone());
         }
+        // Trust the zig command resolved when the linker wrapper was generated;
+        // this avoids spawning `python -m ziglang version` and `zig version`
+        // probes on every compiler invocation.
+        if let Ok(path) = env::var("CARGO_ZIGBUILD_ZIG_COMMAND")
+            && !path.is_empty()
+        {
+            let path = PathBuf::from(path);
+            if path.exists() {
+                let args = env::var("CARGO_ZIGBUILD_ZIG_COMMAND_ARGS")
+                    .map(|s| s.split_whitespace().map(ToString::to_string).collect())
+                    .unwrap_or_default();
+                return Ok(ZIG_PATH.get_or_init(|| (path, args)).clone());
+            }
+        }
         let result = Self::find_zig_python()
             .or_else(|_| Self::find_zig_bin())
             .context("Failed to find zig")?;
@@ -2107,9 +2121,10 @@ pub fn prepare_zig_linker(
     let zig_cxx = wrapper_dir.join(format!("zigcxx-{file_target}-{:x}.{file_ext}", hash));
     let zig_ranlib = wrapper_dir.join(format!("zigranlib.{file_ext}"));
     let zig_version = Zig::zig_version()?;
-    write_linker_wrapper(&zig_cc, "cc", &cc_args_str, &zig_version)?;
-    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str, &zig_version)?;
-    write_linker_wrapper(&zig_ranlib, "ranlib", "", &zig_version)?;
+    let zig_command = Zig::find_zig()?;
+    write_linker_wrapper(&zig_cc, "cc", &cc_args_str, &zig_version, &zig_command)?;
+    write_linker_wrapper(&zig_cxx, "c++", &cc_args_str, &zig_version, &zig_command)?;
+    write_linker_wrapper(&zig_ranlib, "ranlib", "", &zig_version, &zig_command)?;
 
     let exe_ext = if cfg!(windows) { ".exe" } else { "" };
     let zig_ar = wrapper_dir.join(format!("ar{exe_ext}"));
@@ -2240,6 +2255,7 @@ fn write_linker_wrapper(
     command: &str,
     args: &str,
     zig_version: &semver::Version,
+    zig_command: &(PathBuf, Vec<String>),
 ) -> Result<()> {
     let mut buf = Vec::<u8>::new();
     let current_exe = resolve_current_exe()?;
@@ -2251,6 +2267,20 @@ fn write_linker_wrapper(
         "export CARGO_ZIGBUILD_ZIG_VERSION={}",
         zig_version
     )?;
+    // Export the resolved zig command to avoid re-probing for
+    // `python -m ziglang` / `zig` on every compiler invocation
+    writeln!(
+        &mut buf,
+        "export CARGO_ZIGBUILD_ZIG_COMMAND={}",
+        shell_words::quote(&zig_command.0.to_string_lossy())
+    )?;
+    if !zig_command.1.is_empty() {
+        writeln!(
+            &mut buf,
+            "export CARGO_ZIGBUILD_ZIG_COMMAND_ARGS={}",
+            shell_words::quote(&zig_command.1.join(" "))
+        )?;
+    }
 
     // Pass through SDKROOT if it exists at runtime
     writeln!(&mut buf, "if [ -n \"$SDKROOT\" ]; then export SDKROOT; fi")?;
@@ -2286,6 +2316,7 @@ fn write_linker_wrapper(
     command: &str,
     args: &str,
     zig_version: &semver::Version,
+    zig_command: &(PathBuf, Vec<String>),
 ) -> Result<()> {
     let mut buf = Vec::<u8>::new();
     let current_exe = resolve_current_exe()?;
@@ -2299,6 +2330,20 @@ fn write_linker_wrapper(
     writeln!(&mut buf, "setlocal DisableDelayedExpansion")?;
     // Set zig version to avoid spawning `zig version` subprocess
     writeln!(&mut buf, "set CARGO_ZIGBUILD_ZIG_VERSION={}", zig_version)?;
+    // Set the resolved zig command to avoid re-probing for
+    // `python -m ziglang` / `zig` on every compiler invocation
+    writeln!(
+        &mut buf,
+        "set \"CARGO_ZIGBUILD_ZIG_COMMAND={}\"",
+        zig_command.0.display()
+    )?;
+    if !zig_command.1.is_empty() {
+        writeln!(
+            &mut buf,
+            "set \"CARGO_ZIGBUILD_ZIG_COMMAND_ARGS={}\"",
+            zig_command.1.join(" ")
+        )?;
+    }
     writeln!(
         &mut buf,
         "\"{}\" zig {} -- {} %*",
