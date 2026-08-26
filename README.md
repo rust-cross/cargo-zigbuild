@@ -74,7 +74,7 @@ cargo zigbuild --target aarch64-unknown-linux-gnu.2.17
 >   - Version 2.32 can be specified, but runs on a host with only 2.31 available when it should instead abort with an error.
 >   - Meanwhile specifying 2.33 will correctly be detected as incompatible when run on a host with glibc 2.31.
 > - Certain `RUSTFLAGS` like `-C linker` opt-out of using Zig, while `-L path/to/files` will have Zig ignore `-C target-feature=+crt-static`.
-> - `-C target-feature=+crt-static` for statically linking to a glibc version is **not supported** (_upstream `zig cc` lacks support_)
+> - `-C target-feature=+crt-static` for statically linking to a glibc version is **not supported** (_upstream `zig cc` lacks support_). Use a `*-musl` target instead if you need a fully static binary.
 
 #### Tip - `cargo zigbuild` cannot find headers (`*.h` files) or libraries that exist
 
@@ -144,6 +144,18 @@ Provided you have no stripped the symbols from your binary built, on Linux you c
    $ get-min-glibc target/x86_64-unknown-linux-gnu/release/hello-world
    2.28
    ```
+
+### Specify target CPU
+
+When cross-compiling for a CPU newer than the target's baseline — for example AWS Graviton (ARM Neoverse) instances — specify the target CPU via `RUSTFLAGS`, or you may hit hard-to-diagnose `Illegal instruction` (SIGILL, exit code 132) errors at runtime, or leave performance on the table:
+
+```bash
+RUSTFLAGS='-C target-cpu=neoverse-n1' cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.34
+```
+
+`cargo zigbuild` picks up `-C target-cpu` and passes a matching `-mcpu` to `zig cc` so that C/C++ dependencies are built for the same CPU.
+
+Conversely, if a binary built for `x86_64-unknown-linux-gnu` dies with `Illegal instruction` on older hardware, check whether your `RUSTFLAGS`/`.cargo/config.toml` sets a `target-cpu` newer than the machines you deploy to.
 
 ### macOS universal2 target
 
