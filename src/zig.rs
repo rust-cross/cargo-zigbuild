@@ -607,18 +607,28 @@ fn filter_linker_arg(
             && (target_info.is_aarch64() || target_info.is_aarch64_be())
         {
             let march_value = arg.strip_prefix("-march=").unwrap();
-            let features = if let Some(pos) = march_value.find('+') {
-                &march_value[pos..]
-            } else {
-                ""
-            };
+            let mut extensions = march_value.split('+');
+            let _arch = extensions.next();
             let base_cpu = if target_info.is_apple_platform() {
                 target_info.apple_cpu()
             } else {
                 "generic"
             };
-            let mut result = vec![format!("-mcpu={}{}", base_cpu, features)];
-            if features.contains("+crypto") {
+            let mut mcpu = format!("-mcpu={base_cpu}");
+            let mut has_crypto = false;
+            for ext in extensions.filter(|e| !e.is_empty() && *e != "none") {
+                has_crypto |= ext == "crypto";
+                // GCC/clang spell disabling an extension `+no<ext>`,
+                // zig's -mcpu spells it `-<feature>`
+                let (sign, name) = match ext.strip_prefix("no") {
+                    Some(name) if !name.is_empty() => ('-', name),
+                    _ => ('+', ext),
+                };
+                mcpu.push(sign);
+                mcpu.push_str(map_aarch64_arch_extension(name));
+            }
+            let mut result = vec![mcpu];
+            if has_crypto {
                 result.append(&mut vec!["-Xassembler".to_owned(), arg.to_string()]);
             }
             return FilteredArg::Keep(result);
@@ -654,6 +664,27 @@ fn filter_linker_arg(
         }
     }
     FilteredArg::Keep(vec![arg.to_string()])
+}
+
+/// Map GCC/clang aarch64 `-march` arch-extension names to the LLVM feature
+/// names understood by zig's `-mcpu` parser, e.g. `fp16` -> `fullfp16`
+///
+/// The mapping comes from the `ExtensionWithMArch` definitions in
+/// https://github.com/llvm/llvm-project/blob/main/llvm/lib/Target/AArch64/AArch64Features.td
+fn map_aarch64_arch_extension(ext: &str) -> &str {
+    match ext {
+        "fp" => "fp-armv8",
+        "fp16" => "fullfp16",
+        "simd" => "neon",
+        "profile" => "spe",
+        "rng" => "rand",
+        "memtag" => "mte",
+        "pmuv3" => "perfmon",
+        "jscvt" => "jsconv",
+        "fcma" => "complxnum",
+        "predres2" => "specres2",
+        _ => ext,
+    }
 }
 
 impl Zig {
@@ -2509,6 +2540,24 @@ mod tests {
                 "-march=armv8.4-a",
                 "aarch64-apple-darwin",
                 &["-mcpu=apple_m1"],
+            ),
+            // aarch64: GCC/clang extension names mapped to LLVM feature names
+            // https://github.com/rust-cross/cargo-zigbuild/issues/456
+            (
+                "-march=armv8.2-a+sve+fp16",
+                "aarch64-unknown-linux-musl",
+                &["-mcpu=generic+sve+fullfp16"],
+            ),
+            (
+                "-march=armv8.2-a+simd+profile+rng+memtag",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=generic+neon+spe+rand+mte"],
+            ),
+            // aarch64: `+no<ext>` disables a feature
+            (
+                "-march=armv8.2-a+nofp16+nosimd",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=generic-fullfp16-neon"],
             ),
         ];
         for (input, target, expected) in cases {
