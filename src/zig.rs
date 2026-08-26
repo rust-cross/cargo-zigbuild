@@ -625,7 +625,11 @@ fn filter_linker_arg(
                     _ => ('+', ext),
                 };
                 mcpu.push(sign);
-                mcpu.push_str(map_aarch64_arch_extension(name));
+                // zig spells multi-word feature names with underscores
+                // (e.g. sve2_aes) and parses `-` as feature subtraction
+                for c in map_aarch64_arch_extension(name).chars() {
+                    mcpu.push(if c == '-' { '_' } else { c });
+                }
             }
             let mut result = vec![mcpu];
             if has_crypto {
@@ -2552,6 +2556,13 @@ mod tests {
                 "-march=armv8.2-a+simd+profile+rng+memtag",
                 "aarch64-unknown-linux-gnu",
                 &["-mcpu=generic+neon+spe+rand+mte"],
+            ),
+            // aarch64: dashed feature names use underscores in zig,
+            // where `-` would mean feature subtraction
+            (
+                "-march=armv9-a+sve2-aes+fp",
+                "aarch64-unknown-linux-gnu",
+                &["-mcpu=generic+sve2_aes+fp_armv8"],
             ),
             // aarch64: `+no<ext>` disables a feature
             (
