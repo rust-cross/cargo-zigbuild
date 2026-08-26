@@ -346,6 +346,10 @@ impl Zig {
             new_cmd_args.extend(args);
         }
 
+        if target_info.is_apple_platform() {
+            new_cmd_args = dedup_apple_link_libs(new_cmd_args);
+        }
+
         if target_info.is_mips32() {
             // See https://github.com/ziglang/zig/issues/4925#issuecomment-1499823425
             new_cmd_args.push("-Wl,-z,notext".to_string());
@@ -488,7 +492,29 @@ fn filter_linker_args(
             }
         }
     }
+    if target_info.is_apple_platform() {
+        result = dedup_apple_link_libs(result);
+    }
     result
+}
+
+/// Deduplicate `-l` arguments for Apple targets, keeping the first occurrence.
+///
+/// ld64 ignores duplicate libraries, but Zig's Mach-O linker (since 0.14) emits
+/// one `LC_LOAD_DYLIB` load command per `-l` flag, and newer macOS dyld refuses
+/// to load binaries with duplicate linked dylibs.
+/// See https://github.com/rust-cross/cargo-zigbuild/issues/457
+fn dedup_apple_link_libs(args: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    args.into_iter()
+        .filter(|arg| {
+            if arg.starts_with("-l") && arg.len() > 2 {
+                seen.insert(arg.clone())
+            } else {
+                true
+            }
+        })
+        .collect()
 }
 
 fn filter_linker_arg(
@@ -2496,6 +2522,36 @@ mod tests {
         let darwin = Some("aarch64-apple-darwin");
         let result = run_filter_one("-Wl,-dylib", darwin, (13, 0));
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_dedup_apple_duplicate_libs() {
+        // See https://github.com/rust-cross/cargo-zigbuild/issues/457
+        let darwin = Some("aarch64-apple-darwin");
+        let result = run_filter(
+            &[
+                "-lobjc",
+                "-framework",
+                "AppKit",
+                "-lobjc",
+                "-liconv",
+                "-lobjc",
+                "main.o",
+            ],
+            darwin,
+            (16, 0),
+        );
+        assert_eq!(
+            result,
+            vec!["-lobjc", "-framework", "AppKit", "-liconv", "main.o"]
+        );
+        // duplicates are kept on non-Apple targets where link order can matter
+        let result = run_filter(
+            &["-lfoo", "-lfoo"],
+            Some("x86_64-unknown-linux-gnu"),
+            (16, 0),
+        );
+        assert_eq!(result, vec!["-lfoo", "-lfoo"]);
     }
 
     #[test]
