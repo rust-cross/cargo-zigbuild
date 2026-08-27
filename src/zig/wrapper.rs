@@ -13,6 +13,7 @@ use fs_err as fs;
 use path_slash::PathBufExt;
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 
+use super::cli_config::CliConfig;
 use super::locate::cache_dir;
 use super::{Zig, get_dlltool_name, has_system_dlltool};
 
@@ -75,6 +76,17 @@ impl TargetFlags {
 pub fn prepare_zig_linker(
     target: &str,
     cargo_config: &cargo_config2::Config,
+) -> Result<ZigWrapper> {
+    prepare_zig_linker_with_cli_config(target, cargo_config, &[])
+}
+
+/// Like [`prepare_zig_linker`], but additionally honors rustflags passed via
+/// cargo's `--config` CLI option (`config_args`) when deriving the `-mcpu`
+/// passed to `zig cc`.
+pub fn prepare_zig_linker_with_cli_config(
+    target: &str,
+    cargo_config: &cargo_config2::Config,
+    config_args: &[String],
 ) -> Result<ZigWrapper> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
@@ -149,7 +161,10 @@ pub fn prepare_zig_linker(
     // commands like `cargo-zigbuild build` are invoked.
     // Currently we only override according to target_cpu.
     let zig_mcpu_override = {
-        let rust_flags = cargo_config.rustflags(rust_target)?.unwrap_or_default();
+        let cli_config = CliConfig::parse(config_args)?;
+        let rust_flags = cli_config
+            .rustflags(cargo_config, rust_target)?
+            .unwrap_or_default();
         let encoded_rust_flags = rust_flags.encode()?;
         let target_flags = TargetFlags::parse_from_encoded(OsStr::new(&encoded_rust_flags))?;
         // Note: zig uses _ instead of - for target_cpu and target_feature

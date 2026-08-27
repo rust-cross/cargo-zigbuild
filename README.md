@@ -155,6 +155,20 @@ RUSTFLAGS='-C target-cpu=neoverse-n1' cargo zigbuild --release --target aarch64-
 
 `cargo zigbuild` picks up `-C target-cpu` and passes a matching `-mcpu` to `zig cc` so that C/C++ dependencies are built for the same CPU.
 
+Since environment variables can't be set in cargo aliases, you can also pass the rustflags via cargo's `--config` option — `cargo zigbuild` honors it the same way:
+
+```bash
+cargo zigbuild --release --target x86_64-unknown-linux-gnu \
+    --config "target.x86_64-unknown-linux-gnu.rustflags=['-C', 'target-cpu=x86-64-v4']"
+```
+
+This makes it possible to scope a `target-cpu` to a specific alias in `.cargo/config.toml` instead of applying it to every build for that target:
+
+```toml
+[alias]
+build-prod = "zigbuild --release --target x86_64-unknown-linux-gnu --config target.x86_64-unknown-linux-gnu.rustflags=['-C','target-cpu=x86-64-v4']"
+```
+
 Conversely, if a binary built for `x86_64-unknown-linux-gnu` dies with `Illegal instruction` on older hardware, check whether your `RUSTFLAGS`/`.cargo/config.toml` sets a `target-cpu` newer than the machines you deploy to.
 
 ### macOS universal2 target
