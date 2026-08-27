@@ -141,6 +141,23 @@ jobs:
           else
             echo "Test pass"
           fi
+      - name: Test --config target-cpu
+        shell: bash
+        run: |
+          set -e
+          echo "Running --config target.x86_64-unknown-linux-gnu.rustflags=['-C','target-cpu=x86-64-v4']..."
+          echo
+          # Clean so the artifact from the RUSTFLAGS test above can't be reused
+          rm -rf tests/target-cpu/target
+          target/debug/cargo-zigbuild zigbuild --manifest-path tests/target-cpu/Cargo.toml --target x86_64-unknown-linux-gnu --release --config "target.x86_64-unknown-linux-gnu.rustflags=['-C','target-cpu=x86-64-v4']"
+          x86-instruction-set-analyzer tests/target-cpu/target/x86_64-unknown-linux-gnu/release/target-cpu | tee output.txt
+          echo
+          if ! grep -q 'AVX2' output.txt; then
+            echo "Test fail, should contain AVX2 instruction set"
+            false
+          else
+            echo "Test pass"
+          fi
       - name: macOS - Test build
         run: |
           cargo run zigbuild --target aarch64-apple-darwin

@@ -1,4 +1,5 @@
 mod cargo_env;
+mod cli_config;
 mod linker_args;
 mod locate;
 mod target_info;
@@ -16,9 +17,10 @@ use linker_args::{FilteredArg, dedup_apple_link_libs, filter_linker_arg, filter_
 use locate::cache_dir;
 use target_info::TargetInfo;
 
+pub use cli_config::CliConfig;
 #[cfg(target_os = "windows")]
 pub use wrapper::adjust_canonicalization;
-pub use wrapper::{ZigWrapper, prepare_zig_linker};
+pub use wrapper::{ZigWrapper, prepare_zig_linker, prepare_zig_linker_with_cli_config};
 
 /// Zig linker wrapper
 #[derive(Clone, Debug, clap::Subcommand)]

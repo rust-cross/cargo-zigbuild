@@ -20,7 +20,9 @@ use crate::linux::ARM_FEATURES_H;
 use crate::macos::{LIBCHARSET_TBD, LIBICONV_TBD};
 
 use super::locate::cache_dir;
-use super::wrapper::{ZigWrapper, is_mingw_shell, prepare_zig_linker, symlink_wrapper};
+use super::wrapper::{
+    ZigWrapper, is_mingw_shell, prepare_zig_linker_with_cli_config, symlink_wrapper,
+};
 use super::{Zig, has_system_dlltool};
 
 impl Zig {
@@ -82,7 +84,8 @@ impl Zig {
         let host_target = &rustc_meta.host;
         for (parsed_target, raw_target) in rust_targets.iter().zip(raw_targets) {
             let env_target = parsed_target.replace('-', "_");
-            let zig_wrapper = prepare_zig_linker(raw_target, &cargo_config)?;
+            let zig_wrapper =
+                prepare_zig_linker_with_cli_config(raw_target, &cargo_config, &cargo.config)?;
 
             if is_mingw_shell() {
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
