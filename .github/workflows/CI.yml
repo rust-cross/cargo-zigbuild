@@ -107,7 +107,7 @@ jobs:
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target x86_64-pc-windows-gnu
           cargo run zigbuild --manifest-path tests/bindgen-exhaustive/Cargo.toml --target aarch64-apple-darwin
       - name: Install x86-instruction-set-analyzer
-        uses: taiki-e/install-action@v2.85.4
+        uses: taiki-e/install-action@v2.87.1
         with:
           tool: x86-instruction-set-analyzer@0.1.0
       - name: Test RUSTFLAGS
