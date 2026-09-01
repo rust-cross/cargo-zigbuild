@@ -82,10 +82,37 @@ impl Zig {
             rustc_meta.semver.to_string(),
         );
         let host_target = &rustc_meta.host;
+        // This is an output, so any CARGO_ZIGBUILD_TARGET* inherited from an outer
+        // cargo zigbuild is stale; drop it before exporting the ones for this build.
+        for (key, _) in env::vars_os() {
+            let mut name = key.to_string_lossy();
+            // Windows environment variables are case-insensitive, Unix ones are not
+            if cfg!(windows) {
+                name = name.to_ascii_uppercase().into();
+            }
+            if name == "CARGO_ZIGBUILD_TARGET" || name.starts_with("CARGO_ZIGBUILD_TARGET_") {
+                cmd.env_remove(&key);
+            }
+        }
+
         for (parsed_target, raw_target) in rust_targets.iter().zip(raw_targets) {
             let env_target = parsed_target.replace('-', "_");
             let zig_wrapper =
                 prepare_zig_linker_with_cli_config(raw_target, &cargo_config, &cargo.config)?;
+
+            // Export the resolved zig target for build scripts that do not go
+            // through `cc` and so cannot recover the glibc version. Unlike the
+            // variables around it this is an output, so a value inherited from an
+            // outer build is stale rather than an override, and is replaced.
+            // The unsuffixed name is single-target only, since one variable cannot
+            // answer for several targets.
+            cmd.env(
+                format!("CARGO_ZIGBUILD_TARGET_{env_target}"),
+                &zig_wrapper.target,
+            );
+            if raw_targets.len() == 1 {
+                cmd.env("CARGO_ZIGBUILD_TARGET", &zig_wrapper.target);
+            }
 
             if is_mingw_shell() {
                 let zig_cc = zig_wrapper.cc.to_slash_lossy();
