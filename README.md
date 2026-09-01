@@ -48,6 +48,7 @@ on macOS, Windows and Linux you can also install zig from PyPI via `pip3 install
 | `CARGO_ZIGBUILD_ZIG_PATH` | Zig executable path (default: `zig`) |
 | `CARGO_ZIGBUILD_CACHE_DIR` | Cache directory for zig tools and wrappers |
 | `CARGO_ZIGBUILD_RUSTC_VERSION` | Override detected rustc version |
+| `CARGO_ZIGBUILD_TARGET` | Resolved zig target triple exported to build scripts, for example `x86_64-linux-gnu.2.36` (also `CARGO_ZIGBUILD_TARGET_<target>`, which is always set; the unsuffixed name only when a single `--target` is given) |
 | `SDKROOT` | Path to macOS SDK (auto-detected on macOS) |
 | `CMAKE_TOOLCHAIN_FILE` | Path to CMake toolchain file (also `CMAKE_TOOLCHAIN_FILE_<target>`, `TARGET_CMAKE_TOOLCHAIN_FILE`) |
 | `BINDGEN_EXTRA_CLANG_ARGS` | Extra clang arguments for bindgen (also `BINDGEN_EXTRA_CLANG_ARGS_<target>`) |
