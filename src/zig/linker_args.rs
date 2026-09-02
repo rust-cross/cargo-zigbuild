@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::target_info::TargetInfo;
 
 pub(crate) enum FilteredArg {
@@ -108,6 +110,23 @@ pub(crate) fn filter_linker_arg(
         || arg.starts_with("-Wl,-plugin-opt")
     {
         return FilteredArg::Skip;
+    }
+
+    // An input file that reached us through `-Wl,`.
+    //
+    // rustc passes a native static library bundled in an rlib as
+    // `-Wl,--whole-archive -Wl,<path> -Wl,--no-whole-archive`, which is what a build
+    // script asking for `link_lib_modifier("+whole-archive")` produces. cc and clang
+    // forward a `-Wl,` value that is not an option to the linker as a positional
+    // input; zig cc matches every `-Wl,` value against a list of linker flags it
+    // knows and fails with `unsupported linker arg: <path>` instead. Passing it
+    // positionally is the same thing the other drivers do, and leaves the
+    // `--whole-archive` pair around it untouched.
+    if let Some(path) = arg
+        .strip_prefix("-Wl,")
+        .filter(|path| !path.starts_with('-') && Path::new(path).is_file())
+    {
+        return FilteredArg::Keep(vec![path.to_owned()]);
     }
     if target_info.is_musl() || target_info.is_ohos() {
         if (arg.ends_with(".o") && arg.contains("self-contained") && arg.contains("crt"))
@@ -783,5 +802,43 @@ mod tests {
             (13, 0),
         );
         assert_eq!(result, vec!["-o", "output"]);
+    }
+
+    #[test]
+    fn test_filter_wl_path_becomes_positional() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("libtree-sitter-bash.a");
+        std::fs::write(&archive, b"").unwrap();
+        let archive = archive.to_str().unwrap();
+
+        // How rustc passes a static library bundled in an rlib with `+whole-archive`.
+        let result = run_filter(
+            &[
+                "-Wl,--whole-archive",
+                &format!("-Wl,{archive}"),
+                "-Wl,--no-whole-archive",
+            ],
+            Some("x86_64-unknown-linux-musl"),
+            (13, 0),
+        );
+        assert_eq!(
+            result,
+            vec!["-Wl,--whole-archive", archive, "-Wl,--no-whole-archive"]
+        );
+    }
+
+    #[test]
+    fn test_filter_leaves_other_wl_args_alone() {
+        let linux = Some("x86_64-unknown-linux-gnu");
+        // An option, not an input file.
+        assert_eq!(
+            run_filter_one("-Wl,-rpath,/usr/lib", linux, (13, 0)),
+            vec!["-Wl,-rpath,/usr/lib"]
+        );
+        // A path that is not there is not an input file either.
+        assert_eq!(
+            run_filter_one("-Wl,/no/such/libfoo.a", linux, (13, 0)),
+            vec!["-Wl,/no/such/libfoo.a"]
+        );
     }
 }
