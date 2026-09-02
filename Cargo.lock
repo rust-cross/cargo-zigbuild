@@ -266,9 +266,9 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fat-macho"
-version = "0.4.10"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a64465b99fa411ca36a47048e9b1deec20f609b072711e3949e6d135403ea16d"
+checksum = "ad03f3abf5336fde3bff2ec3adf8e7d989038a8dbf817abde3b55f8060e84f29"
 dependencies = [
  "goblin",
 ]
