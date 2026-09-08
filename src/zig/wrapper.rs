@@ -363,7 +363,7 @@ where
 /// - `%` expands even inside quotes, so we escape it as `%%`.
 /// - We disable delayed expansion in the wrapper script, so `!` should not expand.
 /// - Internal `"` are escaped by doubling them (`""`).
-#[cfg(not(target_family = "unix"))]
+#[cfg(any(not(target_family = "unix"), test))]
 fn quote_for_batch(s: &str) -> String {
     let needs_quoting_or_escaping = s.is_empty()
         || s.contains(|c: char| {
@@ -701,7 +701,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_family = "unix"))]
     fn test_quote_for_batch() {
         // Simple argument without special characters - no quoting needed
         assert_eq!(quote_for_batch("-target"), "-target");
@@ -722,7 +721,11 @@ mod tests {
         assert_eq!(quote_for_batch("foo<bar"), "\"foo<bar\"");
         assert_eq!(quote_for_batch("foo>bar"), "\"foo>bar\"");
         assert_eq!(quote_for_batch("foo^bar"), "\"foo^bar\"");
-        assert_eq!(quote_for_batch("foo%bar"), "\"foo%bar\"");
+
+        // Percent signs must be doubled even inside quotes in a batch file.
+        assert_eq!(quote_for_batch("foo%bar"), "\"foo%%bar\"");
+        assert_eq!(quote_for_batch("%PATH%"), "\"%%PATH%%\"");
+        assert_eq!(quote_for_batch("%1"), "\"%%1\"");
 
         // Internal double quotes are escaped by doubling
         assert_eq!(quote_for_batch("foo\"bar"), "\"foo\"\"bar\"");
