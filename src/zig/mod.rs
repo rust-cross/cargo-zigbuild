@@ -13,7 +13,7 @@ use fs_err as fs;
 use target_lexicon::Architecture;
 
 use cargo_env::{write_file, write_tbd_files};
-use linker_args::{FilteredArg, dedup_apple_link_libs, filter_linker_arg, filter_linker_args};
+use linker_args::{LinkerArgFilter, dedup_apple_link_libs};
 use locate::cache_dir;
 use target_info::TargetInfo;
 
@@ -135,6 +135,7 @@ impl Zig {
 
         let mut new_cmd_args = Vec::with_capacity(cmd_args.len());
         let mut skip_next_arg = false;
+        let mut linker_filter = LinkerArgFilter::default();
         let mut seen_target = false;
         for arg in cmd_args {
             if skip_next_arg {
@@ -157,16 +158,10 @@ impl Zig {
                     &rustc_ver,
                     &zig_version,
                     &target_info,
+                    &mut linker_filter,
                 )?]
             } else {
-                match self.filter_linker_arg(arg, &rustc_ver, &zig_version, &target_info) {
-                    FilteredArg::Keep(filtered) => filtered,
-                    FilteredArg::Skip => continue,
-                    FilteredArg::SkipWithNext => {
-                        skip_next_arg = true;
-                        continue;
-                    }
-                }
+                linker_filter.filter_arg(arg, &rustc_ver, &zig_version, &target_info)
             };
             new_cmd_args.extend(args);
         }
@@ -232,6 +227,7 @@ impl Zig {
         rustc_ver: &rustc_version::Version,
         zig_version: &semver::Version,
         target_info: &TargetInfo,
+        linker_filter: &mut LinkerArgFilter,
     ) -> Result<String> {
         // rustc passes arguments to linker via an @-file when arguments are too long
         // See https://github.com/rust-lang/rust/issues/41190
@@ -262,8 +258,9 @@ impl Zig {
                 )
             })?
         };
-        let mut link_args: Vec<_> = filter_linker_args(
-            content.split('\n').map(|s| s.to_string()),
+        let mut link_args = linker_filter.filter_args(
+            // A final newline must not consume an operand expected after this file.
+            content.split_terminator('\n').map(|s| s.to_string()),
             rustc_ver,
             zig_version,
             target_info,
@@ -288,16 +285,6 @@ impl Zig {
             fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
         }
         Ok(arg.to_string())
-    }
-
-    fn filter_linker_arg(
-        &self,
-        arg: &str,
-        rustc_ver: &rustc_version::Version,
-        zig_version: &semver::Version,
-        target_info: &TargetInfo,
-    ) -> FilteredArg {
-        filter_linker_arg(arg, rustc_ver, zig_version, target_info)
     }
 
     fn has_undefined_dynamic_lookup(&self, args: &[String]) -> bool {

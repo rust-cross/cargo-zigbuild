@@ -4,35 +4,70 @@ use super::target_info::TargetInfo;
 
 pub(crate) enum FilteredArg {
     Keep(Vec<String>),
+    /// Keep this option and its following operand without filtering the operand.
+    KeepWithNext,
     Skip,
     SkipWithNext,
 }
 
-pub(crate) fn filter_linker_args(
-    args: impl IntoIterator<Item = String>,
-    rustc_ver: &rustc_version::Version,
-    zig_version: &semver::Version,
-    target_info: &TargetInfo,
-) -> Vec<String> {
-    let mut result = Vec::new();
-    let mut skip_next = false;
-    for arg in args {
-        if skip_next {
-            skip_next = false;
-            continue;
+/// Keep option/operand handling consistent across command-line and response-file args.
+#[derive(Default)]
+pub(crate) struct LinkerArgFilter {
+    next: NextArg,
+}
+
+#[derive(Default)]
+enum NextArg {
+    #[default]
+    Filter,
+    Keep,
+    Skip,
+}
+
+impl LinkerArgFilter {
+    pub(crate) fn filter_arg(
+        &mut self,
+        arg: &str,
+        rustc_ver: &rustc_version::Version,
+        zig_version: &semver::Version,
+        target_info: &TargetInfo,
+    ) -> Vec<String> {
+        match std::mem::take(&mut self.next) {
+            NextArg::Keep => return vec![arg.to_owned()],
+            NextArg::Skip => return vec![],
+            NextArg::Filter => {}
         }
-        match filter_linker_arg(&arg, rustc_ver, zig_version, target_info) {
-            FilteredArg::Keep(filtered) => result.extend(filtered),
-            FilteredArg::Skip => {}
+        match filter_linker_arg(arg, rustc_ver, zig_version, target_info) {
+            FilteredArg::Keep(filtered) => filtered,
+            FilteredArg::KeepWithNext => {
+                self.next = NextArg::Keep;
+                vec![arg.to_owned()]
+            }
+            FilteredArg::Skip => vec![],
             FilteredArg::SkipWithNext => {
-                skip_next = true;
+                self.next = NextArg::Skip;
+                vec![]
             }
         }
     }
-    if target_info.is_apple_platform() {
-        result = dedup_apple_link_libs(result);
+
+    pub(crate) fn filter_args(
+        &mut self,
+        args: impl IntoIterator<Item = String>,
+        rustc_ver: &rustc_version::Version,
+        zig_version: &semver::Version,
+        target_info: &TargetInfo,
+    ) -> Vec<String> {
+        let result = args
+            .into_iter()
+            .flat_map(|arg| self.filter_arg(&arg, rustc_ver, zig_version, target_info))
+            .collect();
+        if target_info.is_apple_platform() {
+            dedup_apple_link_libs(result)
+        } else {
+            result
+        }
     }
-    result
 }
 
 /// Deduplicate `-l` arguments for Apple targets, keeping the first occurrence.
@@ -217,6 +252,10 @@ pub(crate) fn filter_linker_arg(
         {
             return FilteredArg::Skip;
         }
+    } else if arg == "-Wl,-exported_symbols_list" || arg == "-Wl,--dynamic-list" {
+        // These files are operands, not positional linker inputs. In particular,
+        // do not apply the `-Wl,<path>` rewrite to an existing symbols list (#479).
+        return FilteredArg::KeepWithNext;
     }
     if target_info.is_freebsd() {
         let ignored_libs = ["-lkvm", "-lmemstat", "-lprocstat", "-ldevstat"];
@@ -320,7 +359,7 @@ mod tests {
         let rustc_ver = make_rustc_ver(1, 80, 0);
         let zig_version = make_zig_ver(0, zig_ver.0, zig_ver.1);
         let target_info = TargetInfo::new(target.map(|s| s.to_string()).as_ref());
-        filter_linker_args(
+        LinkerArgFilter::default().filter_args(
             args.iter().map(|s| s.to_string()),
             &rustc_ver,
             &zig_version,
@@ -341,7 +380,7 @@ mod tests {
         let rustc_ver = make_rustc_ver(1, rustc_minor, 0);
         let zig_version = make_zig_ver(0, zig_ver.0, zig_ver.1);
         let target_info = TargetInfo::new(target.map(|s| s.to_string()).as_ref());
-        filter_linker_args(
+        LinkerArgFilter::default().filter_args(
             std::iter::once(arg.to_string()),
             &rustc_ver,
             &zig_version,
@@ -735,10 +774,14 @@ mod tests {
 
     #[test]
     fn test_filter_exported_symbols_list_not_filtered_zig_016() {
+        let dir = tempfile::tempdir().unwrap();
+        let list = dir.path().join("list");
+        std::fs::write(&list, "_hello\n").unwrap();
+        let list_arg = format!("-Wl,{}", list.display());
         let result = run_filter(
             &[
                 "-Wl,-exported_symbols_list",
-                "-Wl,/tmp/rustcXXX/list",
+                &list_arg,
                 "-o",
                 "output.dylib",
             ],
@@ -749,7 +792,7 @@ mod tests {
             result,
             vec![
                 "-Wl,-exported_symbols_list",
-                "-Wl,/tmp/rustcXXX/list",
+                &list_arg,
                 "-o",
                 "output.dylib"
             ]
