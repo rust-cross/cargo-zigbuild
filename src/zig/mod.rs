@@ -177,8 +177,13 @@ impl Zig {
 
         // Rust's libstd for strict-align arm targets calls the ARM RTABI
         // unaligned-access helpers (__aeabi_uread4 etc.), which libgcc
-        // provides but zig's compiler-rt does not; link weak definitions
-        if target_info.is_arm() && !cmd_args.iter().any(|x| x == "-c" || x == "-E" || x == "-S") {
+        // provides but zig's compiler-rt does not; link weak definitions.
+        // -M/-MM only generate dependencies, whereas -MD/-MMD can still link.
+        if target_info.is_arm()
+            && !cmd_args
+                .iter()
+                .any(|x| matches!(x.as_str(), "-c" | "-E" | "-S" | "-M" | "-MM"))
+        {
             let cache_dir = cache_dir();
             fs::create_dir_all(&cache_dir)?;
             let shim_path = cache_dir.join("aeabi_unaligned.c");
