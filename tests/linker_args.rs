@@ -87,6 +87,42 @@ fn filter_args(
 }
 
 #[test]
+fn arm_dependency_generation_does_not_add_unaligned_shim() {
+    for mode in ["-M", "-MM", "-c", "-E", "-S"] {
+        let args: Vec<String> = [mode, "-MT", "jemalloc.o", "-o", "jemalloc.d", "jemalloc.c"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(
+            filter_args(&args, "0.15.2", None, "arm-linux-gnueabihf"),
+            args,
+            "mode={mode}"
+        );
+    }
+}
+
+#[test]
+fn arm_linking_still_adds_unaligned_shim_with_dependency_side_effects() {
+    // Unlike -M/-MM, -MD/-MMD do not stop compilation and linking.
+    for mode in [None, Some("-MD"), Some("-MMD")] {
+        let args: Vec<String> = mode
+            .into_iter()
+            .chain(["-o", "hello", "hello.c"])
+            .map(str::to_owned)
+            .collect();
+        let filtered = filter_args(&args, "0.15.2", None, "arm-linux-gnueabihf");
+        assert_eq!(&filtered[..args.len()], &args);
+        assert_eq!(filtered.len(), args.len() + 1);
+        assert_eq!(
+            std::path::Path::new(filtered.last().unwrap())
+                .file_name()
+                .unwrap(),
+            "aeabi_unaligned.c"
+        );
+    }
+}
+
+#[test]
 fn list_operands_and_whole_archive_in_both_argument_paths() {
     let dir = tempfile::tempdir().unwrap();
     let list = dir.path().join("export list");
