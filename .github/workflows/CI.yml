@@ -80,6 +80,7 @@ jobs:
         run: |
           brew install mingw-w64
       - run: cargo build
+      - run: cargo test --all-targets --all-features
       - name: Install Rust targets
         shell: bash
         run: |
