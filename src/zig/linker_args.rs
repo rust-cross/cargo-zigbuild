@@ -137,6 +137,13 @@ pub(crate) fn filter_linker_arg(
             return FilteredArg::Skip;
         } else if arg == "-lmsvcrt" {
             return FilteredArg::Skip;
+        } else if arg == "-lsynchronization" {
+            // Zig doesn't ship a `synchronization.def` import library for
+            // MinGW, but it does ship the API set that actually exports these
+            // symbols (WaitOnAddress, WakeByAddress*, ...). Link against that
+            // instead so we don't have to write into Zig's lib directory.
+            // https://github.com/rust-cross/cargo-zigbuild/issues/484
+            return FilteredArg::Keep(vec!["-lapi-ms-win-core-synch-l1-2-0".to_string()]);
         }
     } else if arg == "-Wl,--no-undefined-version"
         || arg == "-Wl,-znostart-stop-gc"
@@ -445,6 +452,11 @@ mod tests {
         let replaced: &[(&str, (u64, u64), &str)] = &[
             ("-lgcc_eh", (13, 0), "-lc++"),
             ("-Wl,-Bdynamic", (13, 0), "-Wl,-search_paths_first"),
+            (
+                "-lsynchronization",
+                (13, 0),
+                "-lapi-ms-win-core-synch-l1-2-0",
+            ),
         ];
         for (arg, zig_ver, expected) in replaced {
             let result = run_filter_one(arg, gnu, *zig_ver);
