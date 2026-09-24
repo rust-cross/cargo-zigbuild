@@ -541,7 +541,8 @@ fn zig_target_env(triple: &Triple) -> Environment {
 }
 
 /// Build the target triple to pass to `zig cc -target`, where `abi_suffix` is
-/// the glibc version including its leading dot (`.2.36`) or an empty string.
+/// the glibc or macOS version including its leading dot (`.2.36`, `.13.0`)
+/// or an empty string.
 fn zig_target_triple(
     rust_target: &str,
     triple: &Triple,
@@ -586,9 +587,9 @@ fn zig_target_triple(
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
             if *zig_version > semver::Version::new(0, 9, 1) {
-                format!("{arch}-macos-none{abi_suffix}")
+                format!("{arch}-macos{abi_suffix}-none")
             } else {
-                format!("{arch}-macos-gnu{abi_suffix}")
+                format!("{arch}-macos{abi_suffix}-gnu")
             }
         }
         OperatingSystem::Windows => {
@@ -771,7 +772,7 @@ mod tests {
     #[test]
     fn test_zig_target_triple() {
         let cases = [
-            // Rust target (with optional glibc suffix), zig version, zig target
+            // Rust target (with optional version suffix), zig version, zig target
             ("x86_64-unknown-linux-gnu", "0.15.2", "x86_64-linux-gnu"),
             (
                 "x86_64-unknown-linux-gnu.2.36",
@@ -805,6 +806,16 @@ mod tests {
             // zig 0.10 switched the macOS abi to none
             ("aarch64-apple-darwin", "0.15.2", "aarch64-macos-none"),
             ("aarch64-apple-darwin", "0.9.1", "aarch64-macos-gnu"),
+            (
+                "aarch64-apple-darwin.13.0",
+                "0.15.2",
+                "aarch64-macos.13.0-none",
+            ),
+            (
+                "x86_64-apple-darwin.10.15",
+                "0.15.2",
+                "x86_64-macos.10.15-none",
+            ),
             (
                 "aarch64-apple-ios-macabi",
                 "0.15.2",

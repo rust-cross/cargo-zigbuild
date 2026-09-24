@@ -146,6 +146,22 @@ Provided you have no stripped the symbols from your binary built, on Linux you c
    2.28
    ```
 
+### Specify macOS version
+
+To build for a specific minimum macOS version, add that version as a suffix to the `--target` value:
+
+```bash
+cargo zigbuild --target aarch64-apple-darwin.13.0
+```
+
+This passes the version to `zig cc`, and sets `MACOSX_DEPLOYMENT_TARGET` to the same value for `rustc` and any C/C++ build scripts. It overrides a `MACOSX_DEPLOYMENT_TARGET` set in the environment.
+
+> [!NOTE]
+> By default `--target` for `*-apple-darwin` will have Zig build for its own default minimum macOS version. This version depends on the Zig release, and it is not the same as the one `rustc` uses. For example, Zig 0.16 defaults to macOS 13.0, while `rustc` defaults to 11.0 for `aarch64-apple-darwin`.
+
+> [!NOTE]
+> `MACOSX_DEPLOYMENT_TARGET` on its own is not enough. `zig cc` ignores it, so without the suffix the linked binary uses Zig's default version.
+
 ### Specify target CPU
 
 When cross-compiling for a CPU newer than the target's baseline — for example AWS Graviton (ARM Neoverse) instances — specify the target CPU via `RUSTFLAGS`, or you may hit hard-to-diagnose `Illegal instruction` (SIGILL, exit code 132) errors at runtime, or leave performance on the table:
