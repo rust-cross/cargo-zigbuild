@@ -199,6 +199,12 @@ impl Zig {
                 cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
             }
 
+            if raw_target.contains("apple-darwin")
+                && let Some((_, version)) = raw_target.split_once('.')
+            {
+                cmd.env("MACOSX_DEPLOYMENT_TARGET", version);
+            }
+
             // Enable unstable `target-applies-to-host` option automatically
             // when target is the same as host but may have specified glibc version
             if host_target == parsed_target {
