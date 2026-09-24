@@ -110,6 +110,22 @@ pub fn prepare_zig_linker_with_cli_config(
     let triple: Triple = rust_target
         .parse()
         .with_context(|| format!("Unsupported Rust target '{rust_target}'"))?;
+    let abi_suffix = if matches!(
+        triple.operating_system,
+        OperatingSystem::MacOSX { .. } | OperatingSystem::Darwin(_)
+    ) {
+        if !abi_suffix.is_empty() {
+            bail!(
+                "Version suffixes are not supported for macOS targets, set MACOSX_DEPLOYMENT_TARGET instead."
+            )
+        }
+        match env::var("MACOSX_DEPLOYMENT_TARGET") {
+            Ok(version) if !version.is_empty() => normalize_macos_version_suffix(&version)?,
+            _ => String::new(),
+        }
+    } else {
+        abi_suffix
+    };
     let arch = triple.architecture.to_string();
     let target_env = zig_target_env(&triple);
     let file_ext = if cfg!(windows) { "bat" } else { "sh" };
@@ -542,8 +558,27 @@ fn zig_target_env(triple: &Triple) -> Environment {
     }
 }
 
+/// Turn a `MACOSX_DEPLOYMENT_TARGET` value into a zig target version suffix,
+/// e.g. `11` -> `.11.0` and `10.15.7` -> `.10.15.7`, as zig requires at least
+/// `major.minor`.
+fn normalize_macos_version_suffix(version: &str) -> Result<String> {
+    let mut parts = 0;
+    for part in version.split('.') {
+        parts += 1;
+        if parts > 3 || part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+            bail!("Malformed MACOSX_DEPLOYMENT_TARGET '{version}'.")
+        }
+    }
+    if parts == 1 {
+        Ok(format!(".{version}.0"))
+    } else {
+        Ok(format!(".{version}"))
+    }
+}
+
 /// Build the target triple to pass to `zig cc -target`, where `abi_suffix` is
-/// the glibc version including its leading dot (`.2.36`) or an empty string.
+/// the glibc or macOS version including its leading dot (`.2.36`, `.13.0`)
+/// or an empty string.
 fn zig_target_triple(
     rust_target: &str,
     triple: &Triple,
@@ -589,9 +624,9 @@ fn zig_target_triple(
             // Zig 0.10.0 switched macOS ABI to none
             // see https://github.com/ziglang/zig/pull/11684
             if *zig_version > semver::Version::new(0, 9, 1) {
-                format!("{arch}-macos-none{abi_suffix}")
+                format!("{arch}-macos{abi_suffix}-none")
             } else {
-                format!("{arch}-macos-gnu{abi_suffix}")
+                format!("{arch}-macos{abi_suffix}-gnu")
             }
         }
         OperatingSystem::Windows => {
@@ -839,6 +874,59 @@ mod tests {
                 zig_target(target, zig_version).unwrap(),
                 expected,
                 "{target} with zig {zig_version}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_zig_target_triple_macos_version() {
+        let cases = [
+            (
+                "aarch64-apple-darwin",
+                "13.0",
+                "0.15.2",
+                "aarch64-macos.13.0-none",
+            ),
+            (
+                "aarch64-apple-darwin",
+                "11",
+                "0.15.2",
+                "aarch64-macos.11.0-none",
+            ),
+            (
+                "x86_64-apple-darwin",
+                "10.15.7",
+                "0.15.2",
+                "x86_64-macos.10.15.7-none",
+            ),
+            (
+                "x86_64-apple-darwin",
+                "10.15",
+                "0.9.1",
+                "x86_64-macos.10.15-gnu",
+            ),
+        ];
+
+        for (target, version, zig_version, expected) in cases {
+            let triple: Triple = target.parse().unwrap();
+            let zig_target = zig_target_triple(
+                target,
+                &triple,
+                zig_target_env(&triple),
+                &normalize_macos_version_suffix(version).unwrap(),
+                &semver::Version::parse(zig_version).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(zig_target, expected, "{target} with {version}");
+        }
+    }
+
+    #[test]
+    fn test_normalize_macos_version_suffix_malformed() {
+        for version in ["", "abc", "13.", ".13", "13.0.1.2", "13.x"] {
+            assert!(
+                normalize_macos_version_suffix(version).is_err(),
+                "{version}"
             );
         }
     }
