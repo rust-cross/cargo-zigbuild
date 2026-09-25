@@ -95,6 +95,11 @@ pub(crate) fn filter_linker_arg(
     zig_version: &semver::Version,
     target_info: &TargetInfo,
 ) -> FilteredArg {
+    // Zig 0.12–0.16 ignores rustc's linker optimization flag and warns about it.
+    // Preserve it outside that range in case the linker honors the setting.
+    if arg == "-Wl,-O1" && ((0, 12)..(0, 17)).contains(&(zig_version.major, zig_version.minor)) {
+        return FilteredArg::Skip;
+    }
     if arg == "-lgcc_s" {
         return FilteredArg::Keep(vec!["-lunwind".to_string()]);
     } else if arg.starts_with("--target=") {
@@ -393,6 +398,35 @@ mod tests {
             &zig_version,
             &target_info,
         )
+    }
+
+    #[test]
+    fn test_filter_deprecated_linker_optimization() {
+        for target in ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"] {
+            for version in [(12, 0), (13, 0), (14, 1), (15, 2), (16, 0)] {
+                assert_eq!(
+                    run_filter(
+                        &[
+                            "-O3",
+                            "-Wl,-O1",
+                            "-Wl,-O2",
+                            "-Wl,--gc-sections",
+                            "-o",
+                            "output"
+                        ],
+                        Some(target),
+                        version,
+                    ),
+                    vec!["-O3", "-Wl,-O2", "-Wl,--gc-sections", "-o", "output"]
+                );
+            }
+            for version in [(11, 0), (17, 0)] {
+                assert_eq!(
+                    run_filter_one("-Wl,-O1", Some(target), version),
+                    vec!["-Wl,-O1"]
+                );
+            }
+        }
     }
 
     #[test]
