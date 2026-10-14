@@ -37,6 +37,57 @@ pub enum Opt {
     External(Vec<OsString>),
 }
 
+fn cargo_global_arg_width(arg: &str) -> Option<usize> {
+    let short_flags = arg
+        .strip_prefix('-')
+        .is_some_and(|flags| !flags.is_empty() && flags.chars().all(|c| matches!(c, 'q' | 'v')));
+    let attached_value = arg.starts_with("--color=") || arg.starts_with("--config=");
+    let attached_unstable = arg
+        .strip_prefix("-Z")
+        .is_some_and(|value| !value.is_empty());
+
+    if matches!(arg, "--color" | "--config" | "-Z") {
+        Some(2)
+    } else if matches!(
+        arg,
+        "--quiet" | "--verbose" | "--locked" | "--offline" | "--frozen"
+    ) || short_flags
+        || attached_value
+        || attached_unstable
+    {
+        Some(1)
+    } else {
+        None
+    }
+}
+
+/// Cargo accepts global options on either side of its subcommand, while the
+/// command-specific parsers used here accept them after the subcommand.
+/// Normalize the former form into the latter before handing argv to clap.
+fn normalize_global_cargo_args<I>(args: I) -> Vec<OsString>
+where
+    I: IntoIterator<Item = OsString>,
+{
+    let mut args = args.into_iter().collect::<Vec<_>>();
+    let mut index = 1;
+
+    while let Some(arg) = args.get(index).and_then(|arg| arg.to_str()) {
+        if let Some(width) = cargo_global_arg_width(arg) {
+            index += width;
+            continue;
+        }
+        if arg.starts_with('-') || index == 1 || arg == "zig" {
+            return args;
+        }
+
+        let global_args = args.drain(1..index).collect::<Vec<_>>();
+        args.splice(2..2, global_args);
+        return args;
+    }
+
+    args
+}
+
 fn main() -> anyhow::Result<()> {
     let mut args = env::args();
     let program_path = PathBuf::from(args.next().expect("no program path"));
@@ -59,7 +110,7 @@ fn main() -> anyhow::Result<()> {
     } else if program_name.eq_ignore_ascii_case("install_name_tool") {
         cargo_zigbuild::macos::install_name_tool::execute(args)?;
     } else {
-        let opt = Opt::parse();
+        let opt = Opt::parse_from(normalize_global_cargo_args(env::args_os()));
         match opt {
             Opt::Build(mut build) => {
                 build.enable_zig_ar = true;
@@ -108,4 +159,119 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<OsString> {
+        values.iter().map(|value| OsString::from(*value)).collect()
+    }
+
+    #[test]
+    fn normalize_cargo_global_options() {
+        let cases: &[(&[&str], &[&str])] = &[
+            (
+                &["cargo-zigbuild", "--color=auto", "test", "--no-run"],
+                &["cargo-zigbuild", "test", "--color=auto", "--no-run"],
+            ),
+            (
+                &[
+                    "cargo-zigbuild",
+                    "--color",
+                    "auto",
+                    "--config",
+                    "net.offline=true",
+                    "-Z",
+                    "unstable-options",
+                    "-qv",
+                    "check",
+                ],
+                &[
+                    "cargo-zigbuild",
+                    "check",
+                    "--color",
+                    "auto",
+                    "--config",
+                    "net.offline=true",
+                    "-Z",
+                    "unstable-options",
+                    "-qv",
+                ],
+            ),
+            (
+                &[
+                    "cargo-zigbuild",
+                    "--offline",
+                    "metadata",
+                    "--format-version",
+                    "1",
+                ],
+                &[
+                    "cargo-zigbuild",
+                    "metadata",
+                    "--offline",
+                    "--format-version",
+                    "1",
+                ],
+            ),
+            (
+                &["cargo-zigbuild", "test", "--color=always"],
+                &["cargo-zigbuild", "test", "--color=always"],
+            ),
+            (
+                &[
+                    "cargo-zigbuild",
+                    "--target",
+                    "aarch64-unknown-linux-gnu",
+                    "build",
+                ],
+                &[
+                    "cargo-zigbuild",
+                    "--target",
+                    "aarch64-unknown-linux-gnu",
+                    "build",
+                ],
+            ),
+            (
+                &[
+                    "cargo-zigbuild",
+                    "--color=auto",
+                    "zig",
+                    "cc",
+                    "--",
+                    "hello.c",
+                ],
+                &[
+                    "cargo-zigbuild",
+                    "--color=auto",
+                    "zig",
+                    "cc",
+                    "--",
+                    "hello.c",
+                ],
+            ),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_global_cargo_args(args(input)),
+                args(expected),
+                "input: {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn clap_accepts_global_options_before_cargo_subcommand() {
+        let normalized = normalize_global_cargo_args(args(&[
+            "cargo-zigbuild",
+            "--color=auto",
+            "--offline",
+            "test",
+            "--no-run",
+        ]));
+        assert!(matches!(Opt::try_parse_from(normalized), Ok(Opt::Test(_))));
+    }
 }
