@@ -154,6 +154,8 @@ pub(crate) fn filter_linker_arg(
         || arg == "-Wl,-znostart-stop-gc"
         // See https://github.com/rust-lang/rust/pull/155453
         || arg == "-Wl,--fix-cortex-a53-843419"
+        // See https://github.com/rust-lang/rust/pull/162546
+        || arg == "-Wl,--no-rosegment"
         || arg.starts_with("-Wl,-plugin-opt")
     {
         return FilteredArg::Skip;
@@ -518,6 +520,7 @@ mod tests {
             "-Wl,--no-undefined-version",
             "-Wl,-znostart-stop-gc",
             "-Wl,--fix-cortex-a53-843419",
+            "-Wl,--no-rosegment",
             "-Wl,-plugin-opt=O2",
         ];
         for arg in removed {
