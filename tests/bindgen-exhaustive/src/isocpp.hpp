@@ -101,7 +101,12 @@
 #include <system_error>
 #include <thread>
 #include <tuple>
-#include <type_traits>
+// libc++ 23 (Zig 0.18+) implements std::aligned_union with a recursive union
+// template. bindgen panics ("Not an item") while laying that union out.
+// https://github.com/rust-lang/rust-bindgen/issues/2160
+#if _LIBCPP_VERSION < 230000
+	#include <type_traits>
+#endif
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
