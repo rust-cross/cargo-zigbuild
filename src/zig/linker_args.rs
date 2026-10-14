@@ -113,7 +113,7 @@ pub(crate) fn filter_linker_arg(
         // https://github.com/rust-cross/cargo-zigbuild/issues/162
         return FilteredArg::Keep(vec![format!("-Wl,-u,{sym}")]);
     }
-    if (target_info.is_arm() || target_info.is_windows_gnu())
+    if target_info.is_windows_gnu()
         && arg.ends_with(".rlib")
         && arg.contains("libcompiler_builtins-")
     {
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_filter_compiler_builtins_removed() {
-        for target in &["armv7-unknown-linux-gnueabihf", "x86_64-pc-windows-gnu"] {
+        for target in &["i686-pc-windows-gnu", "x86_64-pc-windows-gnu"] {
             let result = run_filter_one(
                 "/path/to/libcompiler_builtins-abc123.rlib",
                 Some(target),
@@ -459,6 +459,22 @@ mod tests {
             assert!(
                 result.is_empty(),
                 "compiler_builtins should be removed for {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_arm_compiler_builtins_preserved() {
+        let arg = "/path/to/libcompiler_builtins-abc123.rlib";
+        for target in &[
+            "arm-unknown-linux-gnueabihf",
+            "armv7-unknown-linux-gnueabihf",
+            "armv7-unknown-linux-musleabi",
+        ] {
+            assert_eq!(
+                run_filter_one(arg, Some(target), (17, 0)),
+                vec![arg],
+                "compiler_builtins should be preserved for {target}"
             );
         }
     }
