@@ -135,8 +135,9 @@ pub fn prepare_zig_linker_with_cli_config(
                     }
                     _ => "",
                 },
-                "armv5te" => "generic+soft_float+strict_align",
+                "armv5te" => "generic+v5te+soft_float+strict_align",
                 "armv7" => "generic+v7a+vfp3-d32+thumb2-neon",
+                "thumbv7neon" => "generic+v7a+vfp3+thumb2+neon",
                 arch_str @ ("i586" | "i686") => {
                     if arch_str == "i586" {
                         "pentium"
@@ -145,6 +146,7 @@ pub fn prepare_zig_linker_with_cli_config(
                     }
                 }
                 "riscv64gc" => "generic_rv64+m+a+f+d+c",
+                "riscv64a23" => "generic_rv64+rva23u64",
                 "s390x" => "z10-vector",
                 _ => "",
             }
@@ -557,6 +559,7 @@ fn zig_target_triple(
                 "arm" => "arm",
                 "armv5te" => "arm",
                 "armv7" => "arm",
+                "thumbv7neon" => "arm",
                 "i586" | "i686" => {
                     if zig_version.major == 0 && zig_version.minor >= 11 {
                         "x86"
@@ -564,7 +567,7 @@ fn zig_target_triple(
                         "i386"
                     }
                 }
-                "riscv64gc" => "riscv64",
+                "riscv64gc" | "riscv64a23" => "riscv64",
                 "s390x" => "s390x",
                 _ => arch.as_str(),
             };
@@ -789,7 +792,17 @@ mod tests {
                 "0.15.2",
                 "arm-linux-gnueabihf",
             ),
+            (
+                "thumbv7neon-unknown-linux-gnueabihf",
+                "0.15.2",
+                "arm-linux-gnueabihf",
+            ),
             ("riscv64gc-unknown-linux-gnu", "0.15.2", "riscv64-linux-gnu"),
+            (
+                "riscv64a23-unknown-linux-gnu",
+                "0.15.2",
+                "riscv64-linux-gnu",
+            ),
             ("s390x-unknown-linux-gnu", "0.15.2", "s390x-linux-gnu"),
             // zig 0.11 renamed the 32-bit x86 arch from i386 to x86
             ("i686-unknown-linux-gnu", "0.15.2", "x86-linux-gnu"),
