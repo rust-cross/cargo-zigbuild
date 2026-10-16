@@ -4,6 +4,32 @@
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
+/// One line of a response file as zig reads it: double quotes group, and a
+/// backslash is literal unless it comes before a quote.
+fn read_zig_response_line(line: &str) -> String {
+    let mut arg = String::new();
+    let mut backslashes = 0;
+    for c in line.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            '"' => {
+                arg.extend(std::iter::repeat_n('\\', backslashes / 2));
+                if backslashes % 2 == 1 {
+                    arg.push('"');
+                }
+                backslashes = 0;
+            }
+            c => {
+                arg.extend(std::iter::repeat_n('\\', backslashes));
+                backslashes = 0;
+                arg.push(c);
+            }
+        }
+    }
+    arg.extend(std::iter::repeat_n('\\', backslashes));
+    arg
+}
+
 fn filter_args(
     args: &[String],
     zig_version: &str,
@@ -25,7 +51,16 @@ fn filter_args(
     command.args(["zig", "cc", "--", "-target", target]);
     if let Some(ref range) = response_range {
         command.args(&args[..range.start]);
-        let content = format!("{}\n", args[range.clone()].join("\n"));
+        let lines: Vec<String> = if target.ends_with("windows-msvc") {
+            args[range.clone()].to_vec()
+        } else {
+            // rustc escapes `\` and space for a non-MSVC linker
+            args[range.clone()]
+                .iter()
+                .map(|arg| arg.replace('\\', "\\\\").replace(' ', "\\ "))
+                .collect()
+        };
+        let content = format!("{}\n", lines.join("\n"));
         let bytes = if target.ends_with("windows-msvc") {
             std::iter::once(0xFEFF)
                 .chain(content.encode_utf16())
@@ -55,7 +90,7 @@ fn filter_args(
     );
     let response_args: Vec<String> = if response_range.is_some() {
         let bytes = std::fs::read(&response).unwrap();
-        let content = if target.ends_with("windows-msvc") {
+        if target.ends_with("windows-msvc") {
             assert_eq!(&bytes[..2], &[255, 254]);
             let utf16: Vec<_> = bytes[2..]
                 .as_chunks::<2>()
@@ -63,11 +98,18 @@ fn filter_args(
                 .iter()
                 .map(|c| u16::from_le_bytes(*c))
                 .collect();
-            String::from_utf16(&utf16).unwrap()
+            String::from_utf16(&utf16)
+                .unwrap()
+                .lines()
+                .map(str::to_owned)
+                .collect()
         } else {
-            String::from_utf8(bytes).unwrap()
-        };
-        content.lines().map(str::to_owned).collect()
+            String::from_utf8(bytes)
+                .unwrap()
+                .lines()
+                .map(read_zig_response_line)
+                .collect()
+        }
     } else {
         vec![]
     };
