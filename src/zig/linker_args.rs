@@ -280,6 +280,83 @@ pub(crate) fn filter_linker_arg(
     FilteredArg::Keep(vec![arg.to_string()])
 }
 
+/// Unescape one line of a rustc linker response file.
+///
+/// rustc writes linker response files for non-MSVC linkers one argument per
+/// line, escaping each `\` and each space with a backslash (the GNU ld
+/// convention, see `Escape` in rustc_codegen_ssa's `back/link.rs`). A backslash
+/// followed by any character yields that character; a trailing one stays
+/// literal.
+pub(crate) fn unescape_linker_response_line(line: &str) -> String {
+    let mut unescaped = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\'
+            && let Some(next) = chars.next()
+        {
+            unescaped.push(next);
+        } else {
+            unescaped.push(c);
+        }
+    }
+    unescaped
+}
+
+/// Quote one linker argument for a single line of a response file as zig reads
+/// it.
+///
+/// zig parses response files with the Windows command line rules
+/// (`std.process.Args.ArgIteratorGeneral` in zig's std), so arguments are
+/// written Windows style, as in Rust std's `make_command_line`: bare if they
+/// have no whitespace and no `"` or `'`, and do not start with `#` (the
+/// iterator splits on whitespace, groups by quotes, and with response file
+/// comments enabled skips a token starting with `#`); otherwise inside double
+/// quotes with `\"` escaped and backslashes doubled right before a quote.
+///
+/// A `'` cannot be preserved whatever is written: zig reads response files with
+/// `single_quotes` enabled, so it is always consumed as a quote (and `\'`
+/// decodes to `"`). Arguments containing one are written best effort.
+pub(crate) fn quote_linker_response_arg(arg: &str) -> String {
+    let needs_quoting = arg.is_empty()
+        || arg.starts_with('#')
+        || arg
+            .chars()
+            .any(|c| c.is_whitespace() || c == '"' || c == '\'');
+    if !needs_quoting {
+        return arg.to_string();
+    }
+    let mut quoted = String::with_capacity(arg.len() + 2);
+    quoted.push('"');
+    let mut backslashes = 0;
+    for c in arg.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            '"' => {
+                // n backslashes before a quote are written as 2n+1 so the
+                // reader emits n of them plus the quote itself
+                for _ in 0..2 * backslashes + 1 {
+                    quoted.push('\\');
+                }
+                backslashes = 0;
+                quoted.push('"');
+            }
+            _ => {
+                for _ in 0..backslashes {
+                    quoted.push('\\');
+                }
+                backslashes = 0;
+                quoted.push(c);
+            }
+        }
+    }
+    // the closing quote also doubles the backslashes before it
+    for _ in 0..2 * backslashes {
+        quoted.push('\\');
+    }
+    quoted.push('"');
+    quoted
+}
+
 /// Map the CPU-name part of a GCC/clang `-mcpu`/`-mtune`/`-march` value to
 /// zig's spelling: zig uses underscores where GCC/clang use dashes
 /// (e.g. cortex-a53 -> cortex_a53, x86-64-v3 -> x86_64_v3), and powerpc
@@ -947,6 +1024,60 @@ mod tests {
         assert_eq!(
             run_filter_one("-Wl,/no/such/libfoo.a", linux, (13, 0)),
             vec!["-Wl,/no/such/libfoo.a"]
+        );
+    }
+
+    #[test]
+    fn test_unescape_linker_response_line() {
+        // rustc escapes each `\` and space with a backslash; a path with a
+        // space is split by zig without the unescaping
+        assert_eq!(
+            unescape_linker_response_line(r#"C:\\Users\\John\ Doe\\libfoo.rlib"#),
+            r#"C:\Users\John Doe\libfoo.rlib"#
+        );
+        // a trailing backslash has nothing following it to unescape
+        assert_eq!(
+            unescape_linker_response_line(r#"C:\\path\\"#),
+            r#"C:\path\"#
+        );
+        // an embedded quote is not escaped by rustc on this path
+        assert_eq!(unescape_linker_response_line(r#"C:\\fo"o"#), r#"C:\fo"o"#);
+        assert_eq!(unescape_linker_response_line("-lfoo"), "-lfoo");
+        assert_eq!(unescape_linker_response_line(""), "");
+    }
+
+    #[test]
+    fn test_quote_linker_response_arg() {
+        // an argument with no whitespace, quotes, or leading `#` stays bare
+        assert_eq!(quote_linker_response_arg("-lfoo"), "-lfoo");
+        // a space and a tab would split the token for zig
+        assert_eq!(
+            quote_linker_response_arg(r#"C:\Users\John Doe\libfoo.rlib"#),
+            r#""C:\Users\John Doe\libfoo.rlib""#
+        );
+        assert_eq!(quote_linker_response_arg("foo\tbar"), "\"foo\tbar\"");
+        // a leading `#` would start a comment line
+        assert_eq!(quote_linker_response_arg("#foo"), "\"#foo\"");
+        // a trailing backslash stays bare; zig reads it literally before the
+        // newline
+        assert_eq!(quote_linker_response_arg(r#"C:\path\"#), r#"C:\path\"#);
+        // an embedded quote is escaped, and backslashes right before a quote
+        // or the closing quote are doubled
+        assert_eq!(quote_linker_response_arg(r#"C:\fo"o"#), r#""C:\fo\"o""#);
+        assert_eq!(quote_linker_response_arg(r#"C:\a"b\"#), r#""C:\a\"b\\""#);
+        // an empty argument still becomes one token
+        assert_eq!(quote_linker_response_arg(""), "\"\"");
+    }
+
+    #[test]
+    fn test_rustc_escaped_line_to_quoted_arg() {
+        // rustc writes the escaped line on the left into the response file;
+        // zig reads back the quoted argument on the right
+        assert_eq!(
+            quote_linker_response_arg(&unescape_linker_response_line(
+                r#"C:\\Users\\John\ Doe\\libfoo.rlib"#
+            )),
+            r#""C:\Users\John Doe\libfoo.rlib""#
         );
     }
 }

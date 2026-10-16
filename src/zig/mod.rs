@@ -13,7 +13,10 @@ use fs_err as fs;
 use target_lexicon::Architecture;
 
 use cargo_env::{write_file, write_tbd_files};
-use linker_args::{LinkerArgFilter, dedup_apple_link_libs};
+use linker_args::{
+    LinkerArgFilter, dedup_apple_link_libs, quote_linker_response_arg,
+    unescape_linker_response_line,
+};
 use locate::cache_dir;
 use target_info::TargetInfo;
 
@@ -263,9 +266,20 @@ impl Zig {
                 )
             })?
         };
+        // For a non-MSVC linker, rustc escapes each `\` and each space with a
+        // backslash (the GNU ld convention), while zig reads response files
+        // with the Windows command line rules, so unescape before filtering
+        // and requote for zig below.
+        let unescape = !target_info.is_windows_msvc();
         let mut link_args = linker_filter.filter_args(
             // A final newline must not consume an operand expected after this file.
-            content.split_terminator('\n').map(|s| s.to_string()),
+            content.split_terminator('\n').map(|line| {
+                if unescape {
+                    unescape_linker_response_line(line)
+                } else {
+                    line.to_string()
+                }
+            }),
             rustc_ver,
             zig_version,
             target_info,
@@ -287,7 +301,15 @@ impl Zig {
             }
             fs::write(arg.trim_start_matches('@'), out)?;
         } else {
-            fs::write(arg.trim_start_matches('@'), link_args.join("\n").as_bytes())?;
+            // zig parses the response file with the Windows command line
+            // rules, not rustc's GNU ld escaping, so rewrite each argument
+            // in that form; one argument per line, as rustc writes it
+            let new_content = link_args
+                .iter()
+                .map(|arg| quote_linker_response_arg(arg))
+                .collect::<Vec<_>>()
+                .join("\n");
+            fs::write(arg.trim_start_matches('@'), new_content.as_bytes())?;
         }
         Ok(arg.to_string())
     }
