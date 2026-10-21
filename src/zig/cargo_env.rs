@@ -45,6 +45,7 @@ impl Zig {
         cargo: &cargo_options::CommonOptions,
         cmd: &mut Command,
         enable_zig_ar: bool,
+        macosx_deployment_target: Option<&str>,
     ) -> Result<()> {
         // setup zig as linker
         let cargo_config = cargo_config2::Config::load()?;
@@ -97,8 +98,12 @@ impl Zig {
 
         for (parsed_target, raw_target) in rust_targets.iter().zip(raw_targets) {
             let env_target = parsed_target.replace('-', "_");
-            let zig_wrapper =
-                prepare_zig_linker_with_cli_config(raw_target, &cargo_config, &cargo.config)?;
+            let zig_wrapper = prepare_zig_linker_with_cli_config(
+                raw_target,
+                &cargo_config,
+                &cargo.config,
+                macosx_deployment_target,
+            )?;
 
             // Export the resolved zig target for build scripts that do not go
             // through `cc` and so cannot recover the glibc version. Unlike the
@@ -197,6 +202,12 @@ impl Zig {
             {
                 // Set PKG_CONFIG_SYSROOT_DIR for pkg-config crate
                 cmd.env("PKG_CONFIG_SYSROOT_DIR", sdkroot);
+            }
+
+            if raw_target.contains("apple-darwin")
+                && let Some(version) = macosx_deployment_target
+            {
+                cmd.env("MACOSX_DEPLOYMENT_TARGET", version);
             }
 
             // Enable unstable `target-applies-to-host` option automatically

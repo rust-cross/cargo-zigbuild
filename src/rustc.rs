@@ -23,6 +23,10 @@ pub struct Rustc {
     #[arg(skip)]
     pub enable_zig_ar: bool,
 
+    /// Minimum macOS version, overrides `MACOSX_DEPLOYMENT_TARGET`
+    #[arg(skip)]
+    pub macosx_deployment_target: Option<String>,
+
     #[command(flatten)]
     pub cargo: cargo_options::Rustc,
 }
@@ -58,6 +62,7 @@ impl Rustc {
                 &self.cargo.common,
                 &mut build,
                 self.enable_zig_ar,
+                self.macosx_deployment_target.as_deref(),
             )?;
         }
 

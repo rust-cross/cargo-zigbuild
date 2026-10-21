@@ -78,7 +78,7 @@ pub fn prepare_zig_linker(
     target: &str,
     cargo_config: &cargo_config2::Config,
 ) -> Result<ZigWrapper> {
-    prepare_zig_linker_with_cli_config(target, cargo_config, &[])
+    prepare_zig_linker_with_cli_config(target, cargo_config, &[], None)
 }
 
 /// Like [`prepare_zig_linker`], but additionally honors rustflags passed via
@@ -88,6 +88,7 @@ pub fn prepare_zig_linker_with_cli_config(
     target: &str,
     cargo_config: &cargo_config2::Config,
     config_args: &[String],
+    macosx_deployment_target: Option<&str>,
 ) -> Result<ZigWrapper> {
     let (rust_target, abi_suffix) = target.split_once('.').unwrap_or((target, ""));
     let abi_suffix = if abi_suffix.is_empty() {
@@ -119,8 +120,9 @@ pub fn prepare_zig_linker_with_cli_config(
                 "Version suffixes are not supported for macOS targets, set MACOSX_DEPLOYMENT_TARGET instead."
             )
         }
-        match env::var("MACOSX_DEPLOYMENT_TARGET") {
-            Ok(version) if !version.is_empty() => normalize_macos_version_suffix(&version)?,
+        let env_version = env::var("MACOSX_DEPLOYMENT_TARGET").ok();
+        match macosx_deployment_target.or(env_version.as_deref()) {
+            Some(version) if !version.is_empty() => normalize_macos_version_suffix(version)?,
             _ => String::new(),
         }
     } else {

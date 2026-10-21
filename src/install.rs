@@ -23,6 +23,10 @@ pub struct Install {
     /// Enable zig ar
     #[arg(skip)]
     pub enable_zig_ar: bool,
+
+    /// Minimum macOS version, overrides `MACOSX_DEPLOYMENT_TARGET`
+    #[arg(skip)]
+    pub macosx_deployment_target: Option<String>,
 }
 
 impl Install {
@@ -54,6 +58,7 @@ impl Install {
                 &self.cargo.common,
                 &mut install,
                 self.enable_zig_ar,
+                self.macosx_deployment_target.as_deref(),
             )?;
         }
 
