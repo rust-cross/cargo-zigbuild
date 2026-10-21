@@ -218,7 +218,7 @@ jobs:
         run: |
           # Install qemu for `cargo-zigbuild run` support
           sudo apt-get update
-          sudo apt-get install -y qemu-user qemu-user-static gcc-aarch64-linux-gnu binfmt-support
+          sudo apt-get install -y qemu-user qemu-user-binfmt gcc-aarch64-linux-gnu binfmt-support
           sudo update-binfmts --enable qemu-aarch64
           export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
 
