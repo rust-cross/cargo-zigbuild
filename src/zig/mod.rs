@@ -191,6 +191,10 @@ impl Zig {
             fs::create_dir_all(&cache_dir)?;
             let shim_path = cache_dir.join("aeabi_unaligned.c");
             write_file(&shim_path, AEABI_UNALIGNED_C)?;
+            // zig compiles the shim with all the arguments of the link, so
+            // clang would warn that the link-only ones (such as rustc's
+            // -fuse-ld=lld and -nostartfiles) are unused.
+            new_cmd_args.push("-Wno-unused-command-line-argument".to_string());
             new_cmd_args.push(shim_path.display().to_string());
         }
 
