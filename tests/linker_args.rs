@@ -154,7 +154,9 @@ fn arm_linking_still_adds_unaligned_shim_with_dependency_side_effects() {
             .collect();
         let filtered = filter_args(&args, "0.15.2", None, "arm-linux-gnueabihf");
         assert_eq!(&filtered[..args.len()], &args);
-        assert_eq!(filtered.len(), args.len() + 1);
+        assert_eq!(filtered.len(), args.len() + 2);
+        // zig compiles the shim with the link-only arguments too.
+        assert_eq!(filtered[args.len()], "-Wno-unused-command-line-argument");
         assert_eq!(
             std::path::Path::new(filtered.last().unwrap())
                 .file_name()
