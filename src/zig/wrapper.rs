@@ -658,7 +658,7 @@ fn zig_target_triple(
             // maps to zig's maccatalyst target
             format!("{arch}-maccatalyst-none{abi_suffix}")
         }
-        OperatingSystem::Freebsd => {
+        OperatingSystem::Freebsd | OperatingSystem::Netbsd => {
             let zig_arch = match arch.as_str() {
                 "i686" => {
                     if zig_version.major == 0 && zig_version.minor >= 11 {
@@ -669,7 +669,7 @@ fn zig_target_triple(
                 }
                 arch => arch,
             };
-            format!("{zig_arch}-freebsd")
+            format!("{zig_arch}-{}", triple.operating_system)
         }
         OperatingSystem::Openbsd => {
             format!("{arch}-openbsd")
@@ -868,6 +868,8 @@ mod tests {
             ("wasm32-unknown-unknown", "0.15.2", "wasm32-freestanding"),
             ("wasm32-unknown-emscripten", "0.15.2", "wasm32-emscripten"),
             ("x86_64-unknown-freebsd", "0.15.2", "x86_64-freebsd"),
+            ("x86_64-unknown-netbsd", "0.15.2", "x86_64-netbsd"),
+            ("i686-unknown-netbsd", "0.15.2", "x86-netbsd"),
             ("x86_64-unknown-openbsd", "0.15.2", "x86_64-openbsd"),
         ];
 
