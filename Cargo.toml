@@ -2,12 +2,19 @@
 name = "cargo-zigbuild"
 version = "0.24.0"
 edition = "2024"
+authors = ["messense <messense@icloud.com>"]
 description = "Compile Cargo project with zig as linker"
 license = "MIT"
 keywords = ["zig", "cargo"]
 readme = "README.md"
 repository = "https://github.com/rust-cross/cargo-zigbuild"
 rust-version = "1.88"
+
+[package.metadata.wix]
+upgrade-guid = "148F9262-E7FC-4014-A72D-1B83091CABBB"
+path-guid = "3831548D-06CE-408F-AB62-9554A0C24BEC"
+license = false
+eula = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
