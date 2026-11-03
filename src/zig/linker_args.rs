@@ -95,6 +95,12 @@ pub(crate) fn filter_linker_arg(
     zig_version: &semver::Version,
     target_info: &TargetInfo,
 ) -> FilteredArg {
+    // clang's driver parses the argument after `-Xarch_<arch>` itself, so the
+    // rewrites below (zig's CPU names in particular) don't apply to it
+    // https://github.com/rust-cross/cargo-zigbuild/issues/513
+    if arg.starts_with("-Xarch_") {
+        return FilteredArg::KeepWithNext;
+    }
     // Zig 0.12 and newer ignore rustc's linker optimization flag and warn about it.
     // Preserve it for older versions in case the linker honors the setting.
     if arg == "-Wl,-O1" && ((0, 12)..).contains(&(zig_version.major, zig_version.minor)) {
@@ -761,6 +767,36 @@ mod tests {
         for (input, target, expected) in cases {
             let result = run_filter_one(input, Some(target), (13, 0));
             assert_eq!(&result, expected, "filter({input}, {target})");
+        }
+    }
+
+    #[test]
+    fn test_filter_keeps_xarch_operand() {
+        // The argument after `-Xarch_<arch>` is parsed by clang's driver, not
+        // by zig cc, so it must keep clang's spelling
+        // https://github.com/rust-cross/cargo-zigbuild/issues/513
+        let cases: &[(&[&str], &[&str])] = &[
+            (
+                &["-Xarch_arm64", "-march=armv8.3-a"],
+                &["-Xarch_arm64", "-march=armv8.3-a"],
+            ),
+            (
+                &["-Xarch_arm64", "-mcpu=apple-m1"],
+                &["-Xarch_arm64", "-mcpu=apple-m1"],
+            ),
+            (
+                &["-Xarch_x86_64", "-march=x86-64-v3"],
+                &["-Xarch_x86_64", "-march=x86-64-v3"],
+            ),
+            // only the argument right after `-Xarch_<arch>` is left alone
+            (
+                &["-Xarch_arm64", "-march=armv8.3-a", "-march=armv8.4-a"],
+                &["-Xarch_arm64", "-march=armv8.3-a", "-mcpu=apple_m1"],
+            ),
+        ];
+        for (input, expected) in cases {
+            let result = run_filter(input, Some("aarch64-apple-darwin"), (16, 0));
+            assert_eq!(&result, expected, "filter({input:?})");
         }
     }
 
