@@ -65,6 +65,65 @@ impl TargetFlags {
     }
 }
 
+/// Default CPU features matching Rust's target specification.
+fn default_zig_mcpu(
+    operating_system: OperatingSystem,
+    arch: &str,
+    target_env: Environment,
+    zig_version: &semver::Version,
+) -> &'static str {
+    // Zig 0.18 renamed ARM's strict_align feature while retaining the
+    // same LLVM strict-align semantics. Compare the release tuple so dev
+    // versions of 0.18 also use the new name.
+    let renamed_alignment = (zig_version.major, zig_version.minor) >= (0, 18);
+    match operating_system {
+        OperatingSystem::Linux => {
+            match arch {
+                // zig uses _ instead of - in cpu features
+                "arm" => match target_env {
+                    Environment::Gnueabi | Environment::Musleabi => {
+                        if renamed_alignment {
+                            "generic+v6+no_unaligned_access"
+                        } else {
+                            "generic+v6+strict_align"
+                        }
+                    }
+                    Environment::Gnueabihf | Environment::Musleabihf => {
+                        if renamed_alignment {
+                            "generic+v6+no_unaligned_access+vfp2-d32"
+                        } else {
+                            "generic+v6+strict_align+vfp2-d32"
+                        }
+                    }
+                    _ => "",
+                },
+                // Zig 0.18 also removed soft_float; the target ABI selects it.
+                "armv5te" => {
+                    if renamed_alignment {
+                        "generic+v5te+no_unaligned_access"
+                    } else {
+                        "generic+v5te+soft_float+strict_align"
+                    }
+                }
+                "armv7" => "generic+v7a+vfp3-d32+thumb2-neon",
+                "thumbv7neon" => "generic+v7a+vfp3+thumb2+neon",
+                arch_str @ ("i586" | "i686") => {
+                    if arch_str == "i586" {
+                        "pentium"
+                    } else {
+                        "pentium4"
+                    }
+                }
+                "riscv64gc" => "generic_rv64+m+a+f+d+c",
+                "riscv64a23" => "generic_rv64+rva23u64",
+                "s390x" => "z10-vector",
+                _ => "",
+            }
+        }
+        _ => "",
+    }
+}
+
 /// Prepare wrapper scripts for `zig cc` and `zig c++` and returns their paths
 ///
 /// We want to use `zig cc` as linker and c compiler. We want to call `python -m ziglang cc`, but
@@ -140,37 +199,9 @@ pub fn prepare_zig_linker_with_cli_config(
         "-fno-sanitize=all".to_owned(),
     ];
 
-    // TODO: Maybe better to assign mcpu according to:
-    // rustc --target <target> -Z unstable-options --print target-spec-json
-    let zig_mcpu_default = match triple.operating_system {
-        OperatingSystem::Linux => {
-            match arch.as_str() {
-                // zig uses _ instead of - in cpu features
-                "arm" => match target_env {
-                    Environment::Gnueabi | Environment::Musleabi => "generic+v6+strict_align",
-                    Environment::Gnueabihf | Environment::Musleabihf => {
-                        "generic+v6+strict_align+vfp2-d32"
-                    }
-                    _ => "",
-                },
-                "armv5te" => "generic+v5te+soft_float+strict_align",
-                "armv7" => "generic+v7a+vfp3-d32+thumb2-neon",
-                "thumbv7neon" => "generic+v7a+vfp3+thumb2+neon",
-                arch_str @ ("i586" | "i686") => {
-                    if arch_str == "i586" {
-                        "pentium"
-                    } else {
-                        "pentium4"
-                    }
-                }
-                "riscv64gc" => "generic_rv64+m+a+f+d+c",
-                "riscv64a23" => "generic_rv64+rva23u64",
-                "s390x" => "z10-vector",
-                _ => "",
-            }
-        }
-        _ => "",
-    };
+    let zig_version = Zig::zig_version()?;
+    let zig_mcpu_default =
+        default_zig_mcpu(triple.operating_system, &arch, target_env, &zig_version);
 
     // Override mcpu from RUSTFLAGS if provided. The override happens when
     // commands like `cargo-zigbuild build` are invoked.
@@ -193,13 +224,8 @@ pub fn prepare_zig_linker_with_cli_config(
         cc_args.push(format!("-mcpu={zig_mcpu_default}"));
     }
 
-    let zig_target = zig_target_triple(
-        rust_target,
-        &triple,
-        target_env,
-        &abi_suffix,
-        &Zig::zig_version()?,
-    )?;
+    let zig_target =
+        zig_target_triple(rust_target, &triple, target_env, &abi_suffix, &zig_version)?;
     cc_args.push("-target".to_string());
     cc_args.push(zig_target.clone());
 
@@ -691,6 +717,60 @@ fn zig_target_triple(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_default_arm_cpu_features() {
+        for version in ["0.11.0", "0.17.0", "0.18.0-dev.852+efa5bfa9b", "0.18.0"] {
+            let zig_version = semver::Version::parse(version).unwrap();
+            let alignment = if zig_version.minor >= 18 {
+                "no_unaligned_access"
+            } else {
+                "strict_align"
+            };
+            for (arch, abi, expected) in [
+                (
+                    "arm",
+                    Environment::Gnueabi,
+                    format!("generic+v6+{alignment}"),
+                ),
+                (
+                    "arm",
+                    Environment::Gnueabihf,
+                    format!("generic+v6+{alignment}+vfp2-d32"),
+                ),
+                (
+                    "arm",
+                    Environment::Musleabi,
+                    format!("generic+v6+{alignment}"),
+                ),
+                (
+                    "arm",
+                    Environment::Musleabihf,
+                    format!("generic+v6+{alignment}+vfp2-d32"),
+                ),
+                (
+                    "armv5te",
+                    Environment::Gnueabi,
+                    if zig_version.minor >= 18 {
+                        format!("generic+v5te+{alignment}")
+                    } else {
+                        format!("generic+v5te+soft_float+{alignment}")
+                    },
+                ),
+                (
+                    "armv7",
+                    Environment::Gnueabihf,
+                    "generic+v7a+vfp3-d32+thumb2-neon".to_string(),
+                ),
+            ] {
+                assert_eq!(
+                    default_zig_mcpu(OperatingSystem::Linux, arch, abi, &zig_version),
+                    expected,
+                    "{arch} {abi} with Zig {version}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_target_flags() {
