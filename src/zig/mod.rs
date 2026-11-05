@@ -227,9 +227,7 @@ impl Zig {
             .spawn()
             .with_context(|| format!("Failed to run `zig {cmd}`"))?;
         let status = child.wait().expect("Failed to wait on zig child process");
-        if !status.success() {
-            process::exit(status.code().unwrap_or(1));
-        }
+        handle_exit_status(cmd, status);
         Ok(())
     }
 
@@ -417,11 +415,30 @@ impl Zig {
             .spawn()
             .with_context(|| format!("Failed to run `zig {cmd}`"))?;
         let status = child.wait().expect("Failed to wait on zig child process");
-        if !status.success() {
-            process::exit(status.code().unwrap_or(1));
-        }
+        handle_exit_status(cmd, status);
         Ok(())
     }
+}
+
+fn handle_exit_status(cmd: &str, status: process::ExitStatus) {
+    if status.success() {
+        return;
+    }
+    if let Some(code) = status.code() {
+        process::exit(code);
+    }
+
+    // ExitStatus's display includes the signal number and name on Unix.
+    eprintln!("zig {cmd} failed: {status}");
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+
+        if let Some(signal) = status.signal() {
+            process::exit(128 + signal);
+        }
+    }
+    process::exit(1);
 }
 
 /// Weak definitions of the ARM RTABI unaligned-access helpers
