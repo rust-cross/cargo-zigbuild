@@ -40,6 +40,19 @@ on macOS, Windows and Linux you can also install zig from PyPI via `pip3 install
 2. Install Rust target via rustup, for example, `rustup target add aarch64-unknown-linux-gnu`
 3. Run `cargo zigbuild`, for example, `cargo zigbuild --target aarch64-unknown-linux-gnu`
 
+To list the Rust target triples that cargo-zigbuild can translate into Zig
+triples for your installed Zig version, run:
+
+```console
+cargo zigbuild --list-target-mappings
+```
+
+This prints two tab-separated columns (Rust target, Zig target) in alphabetical
+order, using the same mapping code as a build. It checks your local `rustc`
+and Zig versions without building a project. Target mapping does not check
+whether the compiler, SDK, system libraries, or Rust target stdlib needed for
+a particular cross-build are installed.
+
 On Unix, if a Zig compiler or tool process is terminated by a signal, its wrapper
 prints the signal and exits with `128 + signal` (for example, `139` for `SIGSEGV`).
 This diagnostic also appears in Cargo's linker or compiler-probe error output.

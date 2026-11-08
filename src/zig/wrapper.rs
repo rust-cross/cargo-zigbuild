@@ -576,7 +576,7 @@ pub fn adjust_canonicalization(p: String) -> String {
 }
 
 /// Maps a Rust target's environment to the one zig names it by.
-fn zig_target_env(triple: &Triple) -> Environment {
+pub(crate) fn zig_target_env(triple: &Triple) -> Environment {
     match (triple.architecture, triple.environment) {
         (Architecture::Mips32(..), Environment::Gnu) => Environment::Gnueabihf,
         (Architecture::Mips32(..), Environment::Musl) => Environment::Musleabi,
@@ -607,7 +607,7 @@ fn normalize_macos_version_suffix(version: &str) -> Result<String> {
 /// Build the target triple to pass to `zig cc -target`, where `abi_suffix` is
 /// the glibc or macOS version including its leading dot (`.2.36`, `.13.0`)
 /// or an empty string.
-fn zig_target_triple(
+pub(crate) fn zig_target_triple(
     rust_target: &str,
     triple: &Triple,
     target_env: Environment,

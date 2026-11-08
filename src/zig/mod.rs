@@ -6,11 +6,13 @@ mod target_info;
 mod wrapper;
 
 use std::env;
+use std::ffi::OsString;
 use std::process;
+use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 use fs_err as fs;
-use target_lexicon::Architecture;
+use target_lexicon::{Architecture, Triple};
 
 use cargo_env::{write_file, write_tbd_files};
 use linker_args::{
@@ -72,7 +74,60 @@ pub enum Zig {
     },
 }
 
+/// Enumerate target conversions from the installed Rust toolchain without
+/// duplicating the mappings used by the linker wrapper. Rust and Zig may
+/// support different subsets; these are conversions, not a guarantee that a
+/// cross-compilation has all the required SDKs and libraries.
+fn target_mappings(rust_targets: &str, zig_version: &semver::Version) -> Vec<(String, String)> {
+    let mut mappings = Vec::new();
+    for rust_target in rust_targets
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let Ok(triple) = rust_target.parse::<Triple>() else {
+            continue;
+        };
+        if let Ok(zig_target) = wrapper::zig_target_triple(
+            rust_target,
+            &triple,
+            wrapper::zig_target_env(&triple),
+            "",
+            zig_version,
+        ) {
+            mappings.push((rust_target.to_owned(), zig_target));
+        }
+    }
+    mappings.sort_unstable();
+    mappings.dedup();
+    mappings
+}
+
 impl Zig {
+    /// Print target mappings for the Rust toolchain and installed Zig version.
+    /// This command does not compile a project or require a Cargo.toml.
+    pub fn print_target_mappings() -> Result<()> {
+        let zig_version = Self::zig_version()?;
+        let rustc = env::var_os("RUSTC").unwrap_or_else(|| OsString::from("rustc"));
+        let output = Command::new(rustc)
+            .args(["--print", "target-list"])
+            .output()
+            .context("Failed to query rustc --print target-list")?;
+        if !output.status.success() {
+            bail!(
+                "rustc --print target-list failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let rust_targets = std::str::from_utf8(&output.stdout)
+            .context("rustc --print target-list returned non-UTF-8 output")?;
+        println!("Rust target\tZig target (Zig {zig_version})");
+        for (rust_target, zig_target) in target_mappings(rust_targets, &zig_version) {
+            println!("{rust_target}\t{zig_target}");
+        }
+        Ok(())
+    }
+
     /// Execute the underlying zig command
     pub fn execute(&self) -> Result<()> {
         match self {
@@ -492,4 +547,48 @@ pub(crate) fn get_dlltool_name(arch: &Architecture) -> &'static str {
 /// Returns true if found, false otherwise
 pub(crate) fn has_system_dlltool(arch: &Architecture) -> bool {
     which::which(get_dlltool_name(arch)).is_ok()
+}
+
+#[cfg(test)]
+mod target_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn list_mappings_is_sorted_and_uses_the_real_conversion_rules() {
+        let version = semver::Version::parse("0.17.0").unwrap();
+        let rust_targets = "x86_64-unknown-redox\nx86_64-unknown-linux-gnu\n\nwasm32-wasip1\ni686-pc-windows-gnu\narmv7-unknown-linux-gnueabihf\nx86_64-unknown-linux-gnu\n";
+        assert_eq!(
+            target_mappings(rust_targets, &version),
+            vec![
+                (
+                    "armv7-unknown-linux-gnueabihf".into(),
+                    "arm-linux-gnueabihf".into()
+                ),
+                ("i686-pc-windows-gnu".into(), "x86-windows-gnu".into()),
+                ("wasm32-wasip1".into(), "wasm32-wasi.0.1.0".into()),
+                ("x86_64-unknown-linux-gnu".into(), "x86_64-linux-gnu".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn mappings_follow_zig_version_changes() {
+        let targets = "i686-unknown-linux-gnu\naarch64-apple-darwin\n";
+        let old = semver::Version::new(0, 9, 1);
+        let new = semver::Version::new(0, 17, 0);
+        assert_eq!(
+            target_mappings(targets, &old),
+            vec![
+                ("aarch64-apple-darwin".into(), "aarch64-macos-gnu".into()),
+                ("i686-unknown-linux-gnu".into(), "i386-linux-gnu".into()),
+            ]
+        );
+        assert_eq!(
+            target_mappings(targets, &new),
+            vec![
+                ("aarch64-apple-darwin".into(), "aarch64-macos-none".into()),
+                ("i686-unknown-linux-gnu".into(), "x86-linux-gnu".into()),
+            ]
+        );
+    }
 }
