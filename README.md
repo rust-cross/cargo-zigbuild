@@ -40,6 +40,17 @@ on macOS, Windows and Linux you can also install zig from PyPI via `pip3 install
 2. Install Rust target via rustup, for example, `rustup target add aarch64-unknown-linux-gnu`
 3. Run `cargo zigbuild`, for example, `cargo zigbuild --target aarch64-unknown-linux-gnu`
 
+Rustup toolchain selectors work in both forms:
+
+```console
+cargo +nightly zigbuild --target x86_64-pc-windows-gnu
+cargo-zigbuild +nightly build --target x86_64-pc-windows-gnu
+```
+
+When invoking `cargo-zigbuild` directly, the `+toolchain` selector is passed
+to Cargo and rustc through `RUSTUP_TOOLCHAIN` while preserving Zig linker
+configuration.
+
 On Unix, if a Zig compiler or tool process is terminated by a signal, its wrapper
 prints the signal and exits with `128 + signal` (for example, `139` for `SIGSEGV`).
 This diagnostic also appears in Cargo's linker or compiler-probe error output.

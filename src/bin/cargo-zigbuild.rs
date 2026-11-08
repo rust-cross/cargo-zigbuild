@@ -61,6 +61,19 @@ fn cargo_global_arg_width(arg: &str) -> Option<usize> {
     }
 }
 
+/// Direct `cargo-zigbuild +toolchain build` invocations do not pass through
+/// rustup's `cargo +toolchain` proxy. Extract the selector so the build still
+/// uses zigbuild's linker setup rather than the external Cargo fallback.
+fn take_rustup_toolchain(args: &mut Vec<OsString>) -> Option<OsString> {
+    let toolchain = args.get(1)?.to_str()?.strip_prefix('+')?;
+    if toolchain.is_empty() {
+        return None;
+    }
+    let toolchain = OsString::from(toolchain);
+    args.remove(1);
+    Some(toolchain)
+}
+
 /// Cargo accepts global options on either side of its subcommand, while the
 /// command-specific parsers used here accept them after the subcommand.
 /// Normalize the former form into the latter before handing argv to clap.
@@ -110,7 +123,13 @@ fn main() -> anyhow::Result<()> {
     } else if program_name.eq_ignore_ascii_case("install_name_tool") {
         cargo_zigbuild::macos::install_name_tool::execute(args)?;
     } else {
-        let opt = Opt::parse_from(normalize_global_cargo_args(env::args_os()));
+        let mut argv = env::args_os().collect::<Vec<_>>();
+        if let Some(toolchain) = take_rustup_toolchain(&mut argv) {
+            // Executed before spawning any threads; set the toolchain for
+            // rustc_version probes and all child Cargo/rustc commands.
+            unsafe { env::set_var("RUSTUP_TOOLCHAIN", toolchain) };
+        }
+        let opt = Opt::parse_from(normalize_global_cargo_args(argv));
         match opt {
             Opt::Build(mut build) => {
                 build.enable_zig_ar = true;
@@ -261,6 +280,41 @@ mod tests {
                 "input: {input:?}"
             );
         }
+    }
+
+    #[test]
+    fn direct_rustup_toolchain_is_parsed_as_a_zigbuild_command() {
+        for toolchain in ["nightly", "stable", "1.88.0", "nightly-2026-10-01"] {
+            let mut argv = args(&[
+                "cargo-zigbuild",
+                &format!("+{toolchain}"),
+                "build",
+                "--release",
+            ]);
+            assert_eq!(
+                take_rustup_toolchain(&mut argv),
+                Some(OsString::from(toolchain))
+            );
+            assert!(matches!(Opt::try_parse_from(argv), Ok(Opt::Build(_))));
+        }
+    }
+
+    #[test]
+    fn existing_cargo_plugin_and_external_paths_are_unchanged() {
+        let mut plugin_argv = args(&["cargo-zigbuild", "zigbuild", "--release"]);
+        assert_eq!(take_rustup_toolchain(&mut plugin_argv), None);
+        assert!(matches!(
+            Opt::try_parse_from(plugin_argv),
+            Ok(Opt::Build(_))
+        ));
+        let mut external_argv = args(&["cargo-zigbuild", "metadata", "--no-deps"]);
+        assert_eq!(take_rustup_toolchain(&mut external_argv), None);
+        assert!(matches!(
+            Opt::try_parse_from(external_argv),
+            Ok(Opt::External(_))
+        ));
+        let mut plus_only = args(&["cargo-zigbuild", "+", "build"]);
+        assert_eq!(take_rustup_toolchain(&mut plus_only), None);
     }
 
     #[test]
