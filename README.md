@@ -33,6 +33,47 @@ docker run --rm -it -v $(pwd):/io -w /io ghcr.io/rust-cross/cargo-zigbuild \
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/cargo-zigbuild.svg?columns=4)](https://repology.org/project/cargo-zigbuild/versions)
 
+### Uninstalling and clearing caches
+
+To remove `cargo-zigbuild`, use the same package manager you installed it with:
+
+```bash
+cargo uninstall cargo-zigbuild
+# Or, for a pip installation:
+python -m pip uninstall cargo-zigbuild
+```
+
+`cargo-zigbuild` writes generated linker wrappers and support files under a
+**versioned cache directory**. You can remove its `cargo-zigbuild` cache tree
+after stopping any builds that use it:
+
+| OS | Default cache tree |
+|----|--------------------|
+| Linux | `${XDG_CACHE_HOME:-$HOME/.cache}/cargo-zigbuild/` |
+| macOS | `~/Library/Caches/cargo-zigbuild/` |
+| Windows | `%LOCALAPPDATA%\cargo-zigbuild\` |
+
+If `CARGO_ZIGBUILD_CACHE_DIR` was set, the tree is instead
+`<CARGO_ZIGBUILD_CACHE_DIR>/cargo-zigbuild/`. In all cases, each installed
+version stores its own files beneath `<version>/`. The override specifies a
+**parent directory**, not the complete cache path (see `src/zig/locate.rs`).
+
+Other caches belong to the tools used by `cargo-zigbuild`:
+
+- **Zig** maintains a separate global compiler cache. Run `zig env` (or
+  `python -m ziglang env` for a pip-installed Zig) and inspect
+  `global_cache_dir` to locate it; delete that directory only if no other Zig
+  projects need it. To uninstall a pip-installed Zig, use
+  `python -m pip uninstall ziglang` if nothing else depends on it.
+- **Cargo** stores per-project build artifacts under `target/` (or the
+  configured `CARGO_TARGET_DIR`); run `cargo clean` **in each project** to
+  remove them. Cargo's registry, Git and toolchain caches are shared with other
+  Rust projects, so uninstalling `cargo-zigbuild` does not remove them.
+
+Removing `cargo-zigbuild`'s versioned cache does not uninstall Zig or Rust, and
+Zig and Cargo caches do not get deleted automatically when the binary is
+uninstalled. See [#492](https://github.com/rust-cross/cargo-zigbuild/issues/492).
+
 ## Usage
 
 1. Install [zig](https://ziglang.org/) following the [official documentation](https://ziglang.org/learn/getting-started/#installing-zig),
