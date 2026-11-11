@@ -102,6 +102,19 @@ This diagnostic also appears in Cargo's linker or compiler-probe error output.
 | `CFLAGS` | Additional C compiler flags |
 | `RUSTFLAGS` | Additional Rust compiler flags |
 
+### Select a Rust toolchain
+
+Rustup toolchain selectors work in both forms:
+
+```console
+cargo +nightly zigbuild --target x86_64-pc-windows-gnu
+cargo-zigbuild +nightly build --target x86_64-pc-windows-gnu
+```
+
+When invoking `cargo-zigbuild` directly, the `+toolchain` selector is passed
+to Cargo and rustc through `RUSTUP_TOOLCHAIN` while preserving Zig linker
+configuration.
+
 ### Specify glibc version
 
 By default `--target` for `*-gnu` will have Zig implicitly build for a default version of glibc that varies based on the release of Zig ([v12 to v14 releases default to glibc 2.28](https://github.com/ziglang/zig/blob/0.14.1/lib/std/Target.zig#L473)).
