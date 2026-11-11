@@ -686,13 +686,16 @@ fn zig_target_triple(
         }
         OperatingSystem::Freebsd | OperatingSystem::Netbsd => {
             let zig_arch = match arch.as_str() {
-                "i686" => {
+                "armv6" => "arm",
+                "armv7" => "arm",
+                "i586" | "i686" => {
                     if zig_version.major == 0 && zig_version.minor >= 11 {
                         "x86"
                     } else {
                         "i386"
                     }
                 }
+                "riscv64gc" => "riscv64",
                 arch => arch,
             };
             format!("{zig_arch}-{}", triple.operating_system)
