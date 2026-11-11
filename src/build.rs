@@ -20,6 +20,10 @@ pub struct Build {
     #[command(flatten)]
     pub cargo: cargo_options::Build,
 
+    /// List the Rust target triples that cargo-zigbuild can translate for the installed Zig version
+    #[arg(long)]
+    pub list_target_mappings: bool,
+
     /// Disable zig linker
     #[arg(skip)]
     pub disable_zig_linker: bool,
@@ -44,6 +48,9 @@ impl Build {
 
     /// Execute `cargo build` command with zig as the linker
     pub fn execute(&self) -> Result<()> {
+        if self.list_target_mappings {
+            return Zig::print_target_mappings();
+        }
         let has_universal2 = self
             .cargo
             .target

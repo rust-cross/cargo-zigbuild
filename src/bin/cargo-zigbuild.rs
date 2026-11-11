@@ -264,6 +264,18 @@ mod tests {
     }
 
     #[test]
+    fn clap_accepts_list_target_mappings() {
+        let parsed = Opt::try_parse_from(["cargo-zigbuild", "zigbuild", "--list-target-mappings"]);
+        assert!(matches!(
+            parsed,
+            Ok(Opt::Build(Build {
+                list_target_mappings: true,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
     fn clap_accepts_global_options_before_cargo_subcommand() {
         let normalized = normalize_global_cargo_args(args(&[
             "cargo-zigbuild",
