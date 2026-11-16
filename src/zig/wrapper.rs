@@ -72,25 +72,25 @@ fn default_zig_mcpu(
     target_env: Environment,
     zig_version: &semver::Version,
 ) -> &'static str {
-    // Zig 0.18 renamed ARM's strict_align feature while retaining the
-    // same LLVM strict-align semantics. Compare the release tuple so dev
-    // versions of 0.18 also use the new name.
-    let renamed_alignment = (zig_version.major, zig_version.minor) >= (0, 18);
+    // Zig 0.18 replaced ARM's generic CPU with architecture-specific models,
+    // renamed strict_align, and removed soft_float and v7a. Compare the release
+    // tuple so development versions also use the new names.
+    let new_arm_models = (zig_version.major, zig_version.minor) >= (0, 18);
     match operating_system {
         OperatingSystem::Linux => {
             match arch {
                 // zig uses _ instead of - in cpu features
                 "arm" => match target_env {
                     Environment::Gnueabi | Environment::Musleabi => {
-                        if renamed_alignment {
-                            "generic+v6+no_unaligned_access"
+                        if new_arm_models {
+                            "armv6+no_unaligned_access"
                         } else {
                             "generic+v6+strict_align"
                         }
                     }
                     Environment::Gnueabihf | Environment::Musleabihf => {
-                        if renamed_alignment {
-                            "generic+v6+no_unaligned_access+vfp2-d32"
+                        if new_arm_models {
+                            "armv6+no_unaligned_access+vfp2-d32"
                         } else {
                             "generic+v6+strict_align+vfp2-d32"
                         }
@@ -99,14 +99,26 @@ fn default_zig_mcpu(
                 },
                 // Zig 0.18 also removed soft_float; the target ABI selects it.
                 "armv5te" => {
-                    if renamed_alignment {
-                        "generic+v5te+no_unaligned_access"
+                    if new_arm_models {
+                        "armv5te+no_unaligned_access"
                     } else {
                         "generic+v5te+soft_float+strict_align"
                     }
                 }
-                "armv7" => "generic+v7a+vfp3-d32+thumb2-neon",
-                "thumbv7neon" => "generic+v7a+vfp3+thumb2+neon",
+                "armv7" => {
+                    if new_arm_models {
+                        "armv7a+vfp3d16+thumb2-neon"
+                    } else {
+                        "generic+v7a+vfp3-d32+thumb2-neon"
+                    }
+                }
+                "thumbv7neon" => {
+                    if new_arm_models {
+                        "armv7a+vfp3+thumb2+neon"
+                    } else {
+                        "generic+v7a+vfp3+thumb2+neon"
+                    }
+                }
                 arch_str @ ("i586" | "i686") => {
                     if arch_str == "i586" {
                         "pentium"
@@ -636,6 +648,18 @@ fn zig_target_triple(
             };
             let mut zig_target_env = target_env.to_string();
 
+            // Zig 0.18 names hard-float ABIs gnu/musl and soft-float ABIs
+            // gnusf/muslsf. The old strings no longer select the bundled libc.
+            if (zig_version.major, zig_version.minor) >= (0, 18) {
+                zig_target_env = match target_env {
+                    Environment::Gnueabi => "gnusf".to_string(),
+                    Environment::Gnueabihf => "gnu".to_string(),
+                    Environment::Musleabi => "muslsf".to_string(),
+                    Environment::Musleabihf => "musl".to_string(),
+                    _ => zig_target_env,
+                };
+            }
+
             // Since Zig 0.15.0, arm-linux-ohos changed to arm-linux-ohoseabi
             // We need to follow the change but target_lexicon follow the LLVM target(https://github.com/bytecodealliance/target-lexicon/pull/123).
             // So we use string directly.
@@ -730,32 +754,29 @@ mod tests {
             } else {
                 "strict_align"
             };
+            let armv6 = if zig_version.minor >= 18 {
+                "armv6"
+            } else {
+                "generic+v6"
+            };
             for (arch, abi, expected) in [
-                (
-                    "arm",
-                    Environment::Gnueabi,
-                    format!("generic+v6+{alignment}"),
-                ),
+                ("arm", Environment::Gnueabi, format!("{armv6}+{alignment}")),
                 (
                     "arm",
                     Environment::Gnueabihf,
-                    format!("generic+v6+{alignment}+vfp2-d32"),
+                    format!("{armv6}+{alignment}+vfp2-d32"),
                 ),
-                (
-                    "arm",
-                    Environment::Musleabi,
-                    format!("generic+v6+{alignment}"),
-                ),
+                ("arm", Environment::Musleabi, format!("{armv6}+{alignment}")),
                 (
                     "arm",
                     Environment::Musleabihf,
-                    format!("generic+v6+{alignment}+vfp2-d32"),
+                    format!("{armv6}+{alignment}+vfp2-d32"),
                 ),
                 (
                     "armv5te",
                     Environment::Gnueabi,
                     if zig_version.minor >= 18 {
-                        format!("generic+v5te+{alignment}")
+                        format!("armv5te+{alignment}")
                     } else {
                         format!("generic+v5te+soft_float+{alignment}")
                     },
@@ -763,7 +784,20 @@ mod tests {
                 (
                     "armv7",
                     Environment::Gnueabihf,
-                    "generic+v7a+vfp3-d32+thumb2-neon".to_string(),
+                    if zig_version.minor >= 18 {
+                        "armv7a+vfp3d16+thumb2-neon".to_string()
+                    } else {
+                        "generic+v7a+vfp3-d32+thumb2-neon".to_string()
+                    },
+                ),
+                (
+                    "thumbv7neon",
+                    Environment::Gnueabihf,
+                    if zig_version.minor >= 18 {
+                        "armv7a+vfp3+thumb2+neon".to_string()
+                    } else {
+                        "generic+v7a+vfp3+thumb2+neon".to_string()
+                    },
                 ),
             ] {
                 assert_eq!(
@@ -973,6 +1007,35 @@ mod tests {
                 expected,
                 "{target} with zig {zig_version}"
             );
+        }
+    }
+
+    #[test]
+    fn test_zig_arm_abi_names() {
+        for version in ["0.11.0", "0.17.0", "0.18.0-dev.1153+c62948217", "0.18.0"] {
+            let modern = semver::Version::parse(version).unwrap().minor >= 18;
+            for arch in ["arm", "armv5te", "armv7", "thumbv7neon"] {
+                for (rust_abi, new_abi) in [
+                    ("gnueabi", "gnusf"),
+                    ("gnueabihf", "gnu"),
+                    ("musleabi", "muslsf"),
+                    ("musleabihf", "musl"),
+                ] {
+                    let zig_abi = if modern { new_abi } else { rust_abi };
+                    let target = format!("{arch}-unknown-linux-{rust_abi}");
+                    assert_eq!(
+                        zig_target(&target, version).unwrap(),
+                        format!("arm-linux-{zig_abi}"),
+                        "{target} with Zig {version}",
+                    );
+                    if rust_abi.starts_with("gnu") {
+                        assert_eq!(
+                            zig_target(&format!("{target}.2.17"), version).unwrap(),
+                            format!("arm-linux-{zig_abi}.2.17"),
+                        );
+                    }
+                }
+            }
         }
     }
 

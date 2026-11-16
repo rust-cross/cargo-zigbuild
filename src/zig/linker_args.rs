@@ -160,6 +160,8 @@ pub(crate) fn filter_linker_arg(
         || arg == "-Wl,-znostart-stop-gc"
         // See https://github.com/rust-lang/rust/pull/155453
         || arg == "-Wl,--fix-cortex-a53-843419"
+        // Newer rustc uses the compiler-driver spelling, rejected by Zig 0.11.
+        || arg == "-mfix-cortex-a53-843419"
         // See https://github.com/rust-lang/rust/pull/162546
         || arg == "-Wl,--no-rosegment"
         || arg.starts_with("-Wl,-plugin-opt")
@@ -625,6 +627,22 @@ mod tests {
         for arg in removed {
             let result = run_filter_one(arg, linux, (13, 0));
             assert!(result.is_empty(), "{arg} should be removed");
+        }
+    }
+
+    #[test]
+    fn test_filter_cortex_a53_erratum_flags() {
+        for version in [(11, 0), (17, 0), (18, 0)] {
+            for flag in ["-Wl,--fix-cortex-a53-843419", "-mfix-cortex-a53-843419"] {
+                assert_eq!(
+                    run_filter(
+                        &[flag, "input.o", "-o", "output"],
+                        Some("aarch64-unknown-linux-gnu"),
+                        version,
+                    ),
+                    ["input.o", "-o", "output"],
+                );
+            }
         }
     }
 
