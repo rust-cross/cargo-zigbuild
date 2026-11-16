@@ -686,13 +686,16 @@ fn zig_target_triple(
         }
         OperatingSystem::Freebsd | OperatingSystem::Netbsd => {
             let zig_arch = match arch.as_str() {
-                "i686" => {
+                "armv6" => "arm",
+                "armv7" => "arm",
+                "i586" | "i686" => {
                     if zig_version.major == 0 && zig_version.minor >= 11 {
                         "x86"
                     } else {
                         "i386"
                     }
                 }
+                "riscv64gc" => "riscv64",
                 arch => arch,
             };
             format!("{zig_arch}-{}", triple.operating_system)
@@ -948,8 +951,19 @@ mod tests {
             ("wasm32-unknown-unknown", "0.15.2", "wasm32-freestanding"),
             ("wasm32-unknown-emscripten", "0.15.2", "wasm32-emscripten"),
             ("x86_64-unknown-freebsd", "0.15.2", "x86_64-freebsd"),
+            ("i686-unknown-freebsd", "0.15.2", "x86-freebsd"),
+            ("i586-unknown-freebsd", "0.15.2", "x86-freebsd"),
+            ("i686-unknown-freebsd", "0.10.1", "i386-freebsd"),
+            ("armv6-unknown-freebsd", "0.15.2", "arm-freebsd"),
+            ("armv7-unknown-freebsd", "0.15.2", "arm-freebsd"),
+            ("riscv64gc-unknown-freebsd", "0.15.2", "riscv64-freebsd"),
             ("x86_64-unknown-netbsd", "0.15.2", "x86_64-netbsd"),
             ("i686-unknown-netbsd", "0.15.2", "x86-netbsd"),
+            ("i586-unknown-netbsd", "0.15.2", "x86-netbsd"),
+            ("i686-unknown-netbsd", "0.10.1", "i386-netbsd"),
+            ("armv6-unknown-netbsd-eabihf", "0.15.2", "arm-netbsd"),
+            ("armv7-unknown-netbsd-eabihf", "0.15.2", "arm-netbsd"),
+            ("riscv64gc-unknown-netbsd", "0.15.2", "riscv64-netbsd"),
             ("x86_64-unknown-openbsd", "0.15.2", "x86_64-openbsd"),
         ];
 
