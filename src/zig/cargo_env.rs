@@ -572,8 +572,13 @@ impl Zig {
                     );
                 }
                 write_tbd_files(&deps_dir)?;
-            } else if target.contains("arm") && target.contains("linux") {
-                // See https://github.com/ziglang/zig/issues/3287
+            } else if target.contains("arm")
+                && target.contains("linux")
+                && Self::zig_version()? < semver::Version::new(0, 10, 1)
+            {
+                // Zig 0.10.1 fixed https://github.com/ziglang/zig/issues/3287.
+                // Newer versions may no longer ship this header at this path;
+                // do not modify their installations, which may be read-only.
                 if let Ok(lib_dir) = Zig::lib_dir() {
                     let arm_features_h = lib_dir
                         .join("libc")
