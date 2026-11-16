@@ -81,6 +81,10 @@ on macOS, Windows and Linux you can also install zig from PyPI via `pip3 install
 2. Install Rust target via rustup, for example, `rustup target add aarch64-unknown-linux-gnu`
 3. Run `cargo zigbuild`, for example, `cargo zigbuild --target aarch64-unknown-linux-gnu`
 
+ARM Linux builds with Zig 0.10.1 or newer do not modify the Zig installation.
+Older Zig versions require a writable installation if the bundled glibc is missing
+`arm-features.h`, so that `cargo-zigbuild` can apply its compatibility workaround.
+
 On Unix, if a Zig compiler or tool process is terminated by a signal, its wrapper
 prints the signal and exits with `128 + signal` (for example, `139` for `SIGSEGV`).
 This diagnostic also appears in Cargo's linker or compiler-probe error output.
